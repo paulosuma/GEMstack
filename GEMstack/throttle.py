@@ -31,19 +31,19 @@ class ThrottleInput:
             "/pacmod/as_rx/steer_cmd", PositionWithSpeed, queue_size=1
         )
         # Speed Subscriber
-        self.speed_sub = rospy.Subcriber(
+        self.speed_sub = rospy.Subscriber(
             "/pacmod/parsed_tx/vehicle_speed_rpt",
             VehicleSpeedRpt,
             self.print_speed_to_file,
         )
         # Steering Column Subscriber
-        self.steer_sub = rospy.Subcriber(
+        self.steer_sub = rospy.Subscriber(
             "/pacmod/parsed_tx/steer_rpt", SystemRptFloat, self.get_steering_position
         )
 
         # Member Variables
         self.throttle_level = throttle_level
-        self.file = open(f"/logs/accel_log_{throttle_level}.csv", "w")
+        self.file = open(f"logs/accel_log_{throttle_level}.csv", "w+")
         self.vehicle_speed = 0
         self.steering_position = -1
 
@@ -73,7 +73,7 @@ class ThrottleInput:
         """Run last
         Sets throttle pedal position to 0 and brake pedal position to 0.7 for
         5 seconds."""
-        rate = rospy.Rate(rate)
+        rate = rospy.Rate(self.rate())
         max_calls = 15
         num_calls = 0
         while self.vehicle_speed > 0 and num_calls < max_calls:
@@ -98,7 +98,7 @@ class ThrottleInput:
 
     def update(self):
         """Run in a loop"""
-        rate = rospy.Rate(rate)
+        rate = rospy.Rate(self.rate())
         while not rospy.is_shutdown():
             # Set steering column to center before moving
             while not self.steering_position == 0:
