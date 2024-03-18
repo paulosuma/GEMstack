@@ -10,13 +10,13 @@ a fixed route.
 the x, y, and theta value.
 - Since we are not dealing with the planning algorithm, we don't have to worry about how the route is generated. The route will go through
 a simple preprocessing step, which is defined in `GEMstack/onboard/planning/motion_planning.py`.
-- The control behavior, which is what our team focuses on, is defined in `pure_pursuite.py`, which uses a baisc pure pursuite controller. TODO: the 
-controller should be very simple to understand, but could put more details here on how it works exactly.
+- The control behavior, which is what our team focuses on, is defined in `GEMstack/onboard/planning/pure_pursuite.py`, which uses a baisc pure pursuite controller. 
+TODO: the controller should be very simple to understand, but could put more details here on how it works exactly.
 
 
 # Walkthrough
 - We take a list of poses, convert it to a trajectory parameterized by time, delta t is defined as the distance between two pose / constant speed
-(constant speed is set to one)
+(constant speed is set to one).
 - 
 
 
