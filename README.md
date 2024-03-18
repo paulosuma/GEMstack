@@ -1,4 +1,30 @@
-# GEMstack: software for CS588 Autonomous Vehicle System Engineering
+
+This serves as a document for recording the progress in implementing a MPC controller in GEMstack, with explanations on how to run things
+and where to find components necessary to run a basic demo that uses the different controllers available in GEMstack
+
+# Example simulation demo 
+
+In GEMstack, run `python3 main.py --variant=sim launch/fixed_route.yaml` to shoot up a simulation demo that has the vehicle following 
+a fixed route.
+- The fixed route is defined in `GEMstack/knowledge/routes/xyhead_highbay_backlot_p.csv`, which is defined as a list of poses consisting of
+the x, y, and theta value.
+- Since we are not dealing with the planning algorithm, we don't have to worry about how the route is generated. The route will go through
+a simple preprocessing step, which is defined in `GEMstack/onboard/planning/motion_planning.py`.
+- The control behavior, which is what our team focuses on, is defined in `pure_pursuite.py`, which uses a baisc pure pursuite controller. TODO: the 
+controller should be very simple to understand, but could put more details here on how it works exactly.
+
+
+# Walkthrough
+- We take a list of poses, convert it to a trajectory parameterized by time, delta t is defined as the distance between two pose / constant speed
+(constant speed is set to one)
+- 
+
+
+
+
+
+
+<!-- # GEMstack: software for CS588 Autonomous Vehicle System Engineering
 
 📖 [Online documentation](https://gemstack.readthedocs.org)
 
@@ -329,11 +355,11 @@ If you wish to override the executor to add more pipelines, you will need to cre
 
 To count as a contribution to the team, you will need to check in your code via pull requests (PRs).  PRs should be reviewed by at least one other approver.
 
+
 - `main`: will contain content that persists between years.  Approver: Kris Hauser.
 - `s2024`: is the "official class vehicle" for this semester's class.  Approver: instructor, TAs.
 - `s2024_groupX`: will be your group's branch. Approver: instructor, TAs, team members.  
 
 Guidelines:
 - DO NOT check in large datasets.  Instead, keep these around on SSDs.
-- DO check in trained models, named descriptively.  In your PR, describe how you evaluated the model and its results.  Choose which model you use in your tests in the settings.
-
+- DO check in trained models, named descriptively.  In your PR, describe how you evaluated the model and its results.  Choose which model you use in your tests in the settings. -->
