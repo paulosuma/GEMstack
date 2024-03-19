@@ -21,8 +21,8 @@ drive:
             type: RouteToTrajectoryPlanner
             args: [null]  #desired speed in m/s.  If null, this will keep the route untimed for the trajectory tracker
         trajectory_tracking:
-            type: pure_pursuit.PurePursuitTrajectoryTracker
-            args: {desired_speed: 2.5}  #approximately 5mph
+            type: MPC.MPCController
+            args: {dt: 0.1, horizon: 20, Q: [1, 1, 1, 1], R: [1, 1]} # time discretization, time horizon, state cost matrix, and control cost matrix  
             print: False
 log:
     # Specify the top-level folder to save the log files.  Default is 'logs'
