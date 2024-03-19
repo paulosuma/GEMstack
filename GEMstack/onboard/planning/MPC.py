@@ -103,6 +103,7 @@ class MPC(object):
         opti.subject_to(x_vars[:, 0] == current_state)
 
         # Set up the optimization problem
+        # TODO: need to put the dynamic constraints here
         for t in range(self.horizon):
             # Model equations constraints
             x_next = self.model_equations(x_vars[:, t], u_vars[:, t])
