@@ -7,51 +7,47 @@ from ...state.trajectory import Path, Trajectory, compute_headings
 from ..component import Component
 from ...knowledge.vehicle.geometry import front2steer
 from scipy.interpolate import interp1d
+from ...utils import settings
+from ...mathutils import transforms
 
 # TODO: change this to get the parameter directly from settings, same as in pure_pursuit.py
-class VehicleDynamics():
-    def __init__(self, vehicle_type=None):
-        # Read the vehicle dynamic variables
-        with open('/home/mike/GEMstack/GEMstack/knowledge/vehicle/gem_e2_geometry.yaml', 'r') as file:
-            geometry = yaml.safe_load(file) 
-        with open('/home/mike/GEMstack/GEMstack/knowledge/vehicle/gem_e2_fast_limits.yaml', 'r') as file:
-            dynamics = yaml.safe_load(file) 
+# class VehicleDynamics():
+#     def __init__(self, vehicle_type=None):
+#         # Read the vehicle dynamic variables
+#         with open('/home/mike/GEMstack/GEMstack/knowledge/vehicle/gem_e2_geometry.yaml', 'r') as file:
+#             geometry = yaml.safe_load(file) 
+#         with open('/home/mike/GEMstack/GEMstack/knowledge/vehicle/gem_e2_fast_limits.yaml', 'r') as file:
+#             dynamics = yaml.safe_load(file) 
         
-        self.geometry = geometry
-        self.dynamics = dynamics
+#         self.geometry = geometry
+#         self.dynamics = dynamics
+        
 
 
 class MPC(object):
-    def __init__(self, vehicle_dynamics, dt, horizon, Q, R):
+    def __init__(self, dt, horizon, Q, R):
         self.dt = dt
         self.horizon = horizon
         self.Q = Q
         self.R = R
-        self.vehicle_dynamics = vehicle_dynamics
+        # self.vehicle_dynamics = vehicle_dynamics
+        self.look_ahead = 4.0
+        self.look_ahead_scale = 3.0
 
         self.path_arg = None
         self.path = None 
         self.trajectory = None
 
-
+        # Defining geometry and dynamic constraints on the vehicle
         self.front_wheel_angle_scale = 3.0
+        self.wheelbase = settings.get('vehicle.geometry.wheelbase')
+        self.max_deceleration = settings.get('vehicle.limits.max_deceleration')
+        self.max_acceleration = settings.get('vehicle.limits.max_acceleration')
+        self.min_steering_angle = settings.get('vehicle.geometry.min_steering_angle')
+        self.max_steering_angle = settings.get('vehicle.geometry.max_steering_angle')
 
-        # # Define the optimization variables
-        # self.delta = ca.SX.sym('delta', self.horizon)  # Steering angles
-        # self.a = ca.SX.sym('a', self.horizon) # Accelerations
+        self.t_last = None
 
-        # # Define the state variables
-        # self.x = ca.SX.sym('x')
-        # self.y = ca.SX.sym('y')
-        # self.theta = ca.SX.sym('theta')
-        # self.v = ca.SX.sym('v')
-        # self.states = ca.vertcat(self.x, self.y, self.theta, self.v)
-
-        # # Define the reference trajectory variables
-        # self.x_ref = ca.SX.sym('x_ref', self.horizon)
-        # self.y_ref = ca.SX.sym('y_ref', self.horizon)
-        # self.theta_ref = ca.SX.sym('theta_ref', self.horizon)
-        # self.v_ref = ca.SX.sym('v_ref', self.horizon)
 
     def set_path(self, path: Path):
         if path == self.path_arg:
@@ -73,7 +69,7 @@ class MPC(object):
         # Implement the kinematic bicycle model equations using CasADi
         x_next = states[0] + states[3] * ca.cos(states[2]) * self.dt
         y_next = states[1] + states[3] * ca.sin(states[2]) * self.dt
-        theta_next = states[2] + (states[3] / self.vehicle_dynamics.geometry['wheelbase']) * ca.tan(controls[1]) * self.dt
+        theta_next = states[2] + (states[3] / self.wheelbase) * ca.tan(controls[1]) * self.dt
         v_next = states[3] + controls[0] * self.dt
         return ca.vertcat(x_next, y_next, theta_next, v_next)
 
@@ -87,16 +83,16 @@ class MPC(object):
             ref_v = np.sqrt(v_x ** 2 + v_y ** 2)
             cost += (ref_trajectory.eval(t)[0] - states[0, t])**2 + \
                 (ref_trajectory.eval(t)[1] - states[1, t])**2
-            if t > 0:
-                delta_x = ref_trajectory.eval(t)[0] - ref_trajectory.eval(t - 1)[0]
-                delta_y = ref_trajectory.eval(t)[1] - ref_trajectory.eval(t - 1)[1]
-                ref_theta = np.arctan2(delta_y, delta_x)
-                cost += (ref_theta - states[2, t])**2
-            else:
-                cost += states[2, t]**2
+            # if t > 0:
+            #     delta_x = ref_trajectory.eval(t)[0] - ref_trajectory.eval(t - 1)[0]
+            #     delta_y = ref_trajectory.eval(t)[1] - ref_trajectory.eval(t - 1)[1]
+            #     ref_theta = np.arctan2(delta_y, delta_x)
+            #     cost += (ref_theta - states[2, t])**2
+            # else:
+            #     cost += states[2, t]**2
             cost += (ref_v - states[3, t])**2
-            # cost += (ref_trajectory.eval(t)[2] - states[2, t])**2 + \
-            #     (ref_v - states[3, t])**2
+            cost += (ref_trajectory.eval(t)[2] - states[2, t])**2 + \
+                (ref_v - states[3, t])**2
             cost += controls[0, t] ** 2 + controls[1, t] ** 2
         # if t > 0:
         #     cost += (controls[0, t] - controls[0, t-1])**2 + \
@@ -108,6 +104,10 @@ class MPC(object):
     def compute(self, state: VehicleState, component: Component = None):
         assert state.pose.frame != ObjectFrameEnum.CURRENT
         t = state.pose.t
+
+        if self.t_last is None:
+            self.t_last = t
+        dt = t - self.t_last
 
         current_state = [state.pose.x, state.pose.y, state.pose.yaw if state.pose.yaw is not None else 0.0, state.v]
 
@@ -122,23 +122,38 @@ class MPC(object):
                 print("Transforming trajectory from", self.trajectory.frame.name, "to", state.pose.frame.name)
                 self.trajectory = self.trajectory.to_frame(state.pose.frame, current_pose=state.pose)
 
-        closest_dist, closest_parameter = self.path.closest_point_local((state.pose.x, state.pose.y), [self.current_path_parameter - 5.0, self.current_path_parameter + 5.0])
+        closest_dist,closest_parameter = self.path.closest_point_local((state.pose.x,state.pose.y),[self.current_path_parameter-5.0,self.current_path_parameter+5.0])
         self.current_path_parameter = closest_parameter
-        self.current_traj_parameter = self.path.parameter_to_time(self.current_path_parameter)
-        # des_parameter = closest_parameter + self.look_ahead + self.look_ahead_scale * speed
+        self.current_traj_parameter += dt
+        #TODO: calculate parameter that is look_ahead distance away from the closest point?
+        #(rather than just advancing the parameter)
+        des_parameter = closest_parameter + self.look_ahead + self.look_ahead_scale * state.v
         print("Closest parameter: " + str(closest_parameter),"distance to path",closest_dist)
         if closest_dist > 0.1:
             print("Closest point",self.path.eval(closest_parameter),"vs",(state.pose.x,state.pose.y))
+        if des_parameter >= self.path.domain()[1]:
+            #we're at the end of the path, calculate desired point by extrapolating from the end of the path
+            end_pt = self.path.points[-1]
+            if len(self.path.points) > 1:
+                end_dir = self.path.eval_tangent(self.path.domain()[1])
+            else:
+                #path is just a single point, just look at current direction
+                end_dir = (np.cos(state.pose.yaw),np.sin(state.pose.yaw))
+            desired_x,desired_y = transforms.vector_madd(end_pt,end_dir,(des_parameter-self.path.domain()[1]))
+        else:
+            desired_x,desired_y = self.path.eval(des_parameter)
+        desired_yaw = np.arctan2(desired_y-state.pose.y,desired_x-state.pose.x)
 
         # TODO: looks like we should use the closest point every time for getting the reference trajectory
         # if we only use the curren time t to get the reference trajectory it will be very easy to get
         # large deviations
+        ref_trajectory = self.path.trim(des_parameter, min(des_parameter + self.horizon, self.path.times[-1]))
 
         # Slice a range of trajectory given the horizon value
-        ref_trajectory = self.path.trim(state.pose.t, min(state.pose.t + self.horizon, self.path.times[-1]))
+        # ref_trajectory = self.path.trim(state.pose.t, min(state.pose.t + self.horizon, self.path.times[-1]))
         ref_trajectory = compute_headings(ref_trajectory)
         # print("CURRENT STATE: ", current_state)
-        # print("REF TRAJECTORY: ", ref_trajectory)
+        print("REF TRAJECTORY: ", ref_trajectory)
 
         # Set up the optimization problem
         opti = ca.Opti()
@@ -156,8 +171,8 @@ class MPC(object):
             opti.subject_to(x_vars[:, t + 1] == x_next)
 
             # Control input constraints
-            opti.subject_to(opti.bounded(-self.vehicle_dynamics.dynamics['max_deceleration'], u_vars[0, t], self.vehicle_dynamics.dynamics['max_acceleration']))
-            opti.subject_to(opti.bounded(self.vehicle_dynamics.geometry['min_steering_angle'], u_vars[1, t], self.vehicle_dynamics.geometry['max_steering_angle']))
+            opti.subject_to(opti.bounded(-self.max_deceleration, u_vars[0, t], self.max_acceleration))
+            opti.subject_to(opti.bounded(self.min_steering_angle, u_vars[1, t], self.max_steering_angle))
             
         # Set the objective function
         obj = self.get_cost_function(x_vars, u_vars, ref_trajectory)
@@ -183,12 +198,12 @@ class MPC(object):
 
 class MPCController(Component):
     def __init__(self, vehicle_interface=None, **args):
-        self.vehicle_dynamics = VehicleDynamics()
-        self.MPC = MPC(self.vehicle_dynamics, **args)
+        # self.vehicle_dynamics = VehicleDynamics()
+        self.MPC = MPC(**args)
         self.vehicle_interface = vehicle_interface
 
     def rate(self):
-        return 2.0
+        return 1.0
 
     def state_inputs(self):
         return ['vehicle', 'trajectory']
@@ -200,8 +215,10 @@ class MPCController(Component):
         start_time = time.perf_counter()
         self.MPC.set_path(trajectory)
         acceleration, steering_wheel_angle = self.MPC.compute(vehicle)
+        # steering_angle = np.clip(front2steer(steering_wheel_angle), self.MPC.steering_angle_range[0], self.MPC.steering_angle_range[1])
         print("acceleration: ", acceleration)
         print("steering_wheel_angle", steering_wheel_angle)
+        # print("steer_angle", steering_angle)
         self.vehicle_interface.send_command(self.vehicle_interface.simple_command(acceleration, -steering_wheel_angle, vehicle))
 
         end_time = time.perf_counter()
