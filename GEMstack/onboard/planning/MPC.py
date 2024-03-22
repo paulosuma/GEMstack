@@ -8,29 +8,16 @@ from ..component import Component
 from ...knowledge.vehicle.geometry import front2steer
 from scipy.interpolate import interp1d
 from ...utils import settings
-from ...mathutils import transforms
-
-# TODO: change this to get the parameter directly from settings, same as in pure_pursuit.py
-# class VehicleDynamics():
-#     def __init__(self, vehicle_type=None):
-#         # Read the vehicle dynamic variables
-#         with open('/home/mike/GEMstack/GEMstack/knowledge/vehicle/gem_e2_geometry.yaml', 'r') as file:
-#             geometry = yaml.safe_load(file) 
-#         with open('/home/mike/GEMstack/GEMstack/knowledge/vehicle/gem_e2_fast_limits.yaml', 'r') as file:
-#             dynamics = yaml.safe_load(file) 
-        
-#         self.geometry = geometry
-#         self.dynamics = dynamics
-        
-
+from ...mathutils import transforms        
 
 class MPC(object):
     def __init__(self, dt, horizon, Q, R):
+        # Defining the tunable parameters
         self.dt = dt
-        self.horizon = horizon
+        self.horizon = horizon # horizon represented in seconds
+        self.timesteps = int(self.horizon / self.dt) # horizon represented in the number of time steps
         self.Q = Q
         self.R = R
-        # self.vehicle_dynamics = vehicle_dynamics
         self.look_ahead = 4.0
         self.look_ahead_scale = 3.0
 
@@ -77,28 +64,16 @@ class MPC(object):
         # Implement the cost function using CasADi
         cost = 0
 
-        for t in range(self.horizon):
+        for t in range(self.timesteps):
+            print(t)
             v_x = ref_trajectory.eval_derivative(t)[0]
             v_y = ref_trajectory.eval_derivative(t)[1]
             ref_v = np.sqrt(v_x ** 2 + v_y ** 2)
-            cost += (ref_trajectory.eval(t)[0] - states[0, t])**2 + \
-                (ref_trajectory.eval(t)[1] - states[1, t])**2
-            # if t > 0:
-            #     delta_x = ref_trajectory.eval(t)[0] - ref_trajectory.eval(t - 1)[0]
-            #     delta_y = ref_trajectory.eval(t)[1] - ref_trajectory.eval(t - 1)[1]
-            #     ref_theta = np.arctan2(delta_y, delta_x)
-            #     cost += (ref_theta - states[2, t])**2
-            # else:
-            #     cost += states[2, t]**2
-            cost += (ref_v - states[3, t])**2
-            cost += (ref_trajectory.eval(t)[2] - states[2, t])**2 + \
-                (ref_v - states[3, t])**2
-            cost += controls[0, t] ** 2 + controls[1, t] ** 2
-        # if t > 0:
-        #     cost += (controls[0, t] - controls[0, t-1])**2 + \
-        #             (controls[1, t] - controls[1, t-1])**2
-        # else:
-        #     cost += controls[0, t]**2 + controls[1, t]**2
+            cost += self.Q[0] * (ref_trajectory.eval(t)[0] - states[0, t])**2 + \
+                self.Q[1] * (ref_trajectory.eval(t)[1] - states[1, t])**2
+            cost += self.Q[2] * (ref_trajectory.eval(t)[2] - states[2, t])**2 + \
+                self.Q[3] * (ref_v - states[3, t])**2
+            cost += self.R[0] * controls[0, t] ** 2 + self.R[1] * controls[1, t] ** 2
         return cost
 
     def compute(self, state: VehicleState, component: Component = None):
@@ -125,47 +100,25 @@ class MPC(object):
         closest_dist,closest_parameter = self.path.closest_point_local((state.pose.x,state.pose.y),[self.current_path_parameter-5.0,self.current_path_parameter+5.0])
         self.current_path_parameter = closest_parameter
         self.current_traj_parameter += dt
-        #TODO: calculate parameter that is look_ahead distance away from the closest point?
-        #(rather than just advancing the parameter)
-        des_parameter = closest_parameter + self.look_ahead + self.look_ahead_scale * state.v
-        print("Closest parameter: " + str(closest_parameter),"distance to path",closest_dist)
-        if closest_dist > 0.1:
-            print("Closest point",self.path.eval(closest_parameter),"vs",(state.pose.x,state.pose.y))
-        if des_parameter >= self.path.domain()[1]:
-            #we're at the end of the path, calculate desired point by extrapolating from the end of the path
-            end_pt = self.path.points[-1]
-            if len(self.path.points) > 1:
-                end_dir = self.path.eval_tangent(self.path.domain()[1])
-            else:
-                #path is just a single point, just look at current direction
-                end_dir = (np.cos(state.pose.yaw),np.sin(state.pose.yaw))
-            desired_x,desired_y = transforms.vector_madd(end_pt,end_dir,(des_parameter-self.path.domain()[1]))
-        else:
-            desired_x,desired_y = self.path.eval(des_parameter)
-        desired_yaw = np.arctan2(desired_y-state.pose.y,desired_x-state.pose.x)
 
-        # TODO: looks like we should use the closest point every time for getting the reference trajectory
-        # if we only use the curren time t to get the reference trajectory it will be very easy to get
-        # large deviations
-        ref_trajectory = self.path.trim(des_parameter, min(des_parameter + self.horizon, self.path.times[-1]))
+        des_parameter = closest_parameter + self.look_ahead + self.look_ahead_scale * state.v
+        print("Desired parameter: " + str(des_parameter),"distance to path",closest_dist)
 
         # Slice a range of trajectory given the horizon value
-        # ref_trajectory = self.path.trim(state.pose.t, min(state.pose.t + self.horizon, self.path.times[-1]))
+        ref_trajectory = self.path.trim(des_parameter, min(des_parameter + self.timesteps, self.path.times[-1]))
         ref_trajectory = compute_headings(ref_trajectory)
         # print("CURRENT STATE: ", current_state)
-        print("REF TRAJECTORY: ", ref_trajectory)
+        # print("REF TRAJECTORY: ", ref_trajectory)
 
         # Set up the optimization problem
         opti = ca.Opti()
-        x_vars = opti.variable(4, self.horizon + 1)  # State variables
-        u_vars = opti.variable(2, self.horizon) # Control variables
+        x_vars = opti.variable(4, self.timesteps + 1)  # State variables
+        u_vars = opti.variable(2, self.timesteps) # Control variables
 
         # Set initial conditions
         opti.subject_to(x_vars[:, 0] == current_state)
 
-        # TODO: need to set the dynamic constraints here
-        # Set up the optimization problem
-        for t in range(self.horizon):
+        for t in range(self.timesteps):
             # Model equations constraints
             x_next = self.get_model_equations(x_vars[:, t], u_vars[:, t])
             opti.subject_to(x_vars[:, t + 1] == x_next)
@@ -198,7 +151,6 @@ class MPC(object):
 
 class MPCController(Component):
     def __init__(self, vehicle_interface=None, **args):
-        # self.vehicle_dynamics = VehicleDynamics()
         self.MPC = MPC(**args)
         self.vehicle_interface = vehicle_interface
 
@@ -215,10 +167,8 @@ class MPCController(Component):
         start_time = time.perf_counter()
         self.MPC.set_path(trajectory)
         acceleration, steering_wheel_angle = self.MPC.compute(vehicle)
-        # steering_angle = np.clip(front2steer(steering_wheel_angle), self.MPC.steering_angle_range[0], self.MPC.steering_angle_range[1])
         print("acceleration: ", acceleration)
         print("steering_wheel_angle", steering_wheel_angle)
-        # print("steer_angle", steering_angle)
         self.vehicle_interface.send_command(self.vehicle_interface.simple_command(acceleration, -steering_wheel_angle, vehicle))
 
         end_time = time.perf_counter()
