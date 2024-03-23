@@ -176,15 +176,14 @@ def longitudinal_plan(path : Path, acceleration : float, deceleration : float, m
     s = 0
     v = current_speed
 
-    while v > 1e-12 or s < sum(l):
-        if v != 0:
-            points2.append(vector_madd(points2[-1], get_unit_vector(points, s), v * dt))
-            times.append(times[-1] + dt)
-
+    while v >= 0 or s < sum(l):
         a = acceleration if v**2 / (2 * deceleration) <= sum(l) - s else -deceleration
         v = min(v + a * dt, max_speed)
         s += v * dt
-    
+
+        points2.append(vector_madd(points2[-1], get_unit_vector(points, s), v * dt))
+        times.append(times[-1] + dt)
+        
     return Trajectory(path.frame, points2, times)
 
 
@@ -202,12 +201,12 @@ def longitudinal_brake(path : Path, deceleration : float, current_speed : float)
     s = 0
     v = current_speed
 
-    while v > 1e-12:
-        points2.append(vector_madd(points2[-1], get_unit_vector(points, s), v * dt))
-        times.append(times[-1] + dt)
-
+    while v >= 0:
         v -= deceleration * dt
         s += v * dt
+
+        points2.append(vector_madd(points2[-1], get_unit_vector(points, s), v * dt))
+        times.append(times[-1] + dt)
 
     return Trajectory(path.frame, points2, times)
 
