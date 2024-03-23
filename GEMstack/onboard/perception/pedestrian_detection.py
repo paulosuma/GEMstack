@@ -165,13 +165,12 @@ class PedestrianDetector(Component):
     
         # We first find the points in point_cloud_image that are within the bounding box
         x, y, w, h = box
-        # print('Bbox: [{0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}]'.format(x,y,w,h))
+        # print('Bbox: [{.2f}, {.2f}, {.2f}, {.2f}]'.format(x,y,w,h))
 
+        c = 2   # to make the module tolerant to calibration-related errors
         idx = [i for i in range(len(point_cloud_image)) if 
-                    point_cloud_image[i][0] >= x - w/2 and 
-                    point_cloud_image[i][1] >= y - h/2 and 
-                    point_cloud_image[i][0] <= x + w/2 and 
-                    point_cloud_image[i][1] <= y + h/2]
+                    (x - c * w/2) <= point_cloud_image[i][0] <= (x + c * w/2) and
+                    (y - c * h/2) <= point_cloud_image[i][1] <= (y + c * h/2)]
         points_in_box = [point_cloud_vehicle_frame[i] for i in idx]   # in vehicle frame
         # print("points_in_box", points_in_box)
 
@@ -202,11 +201,7 @@ class PedestrianDetector(Component):
         # print(detection_result)
 
         # Create boxes from detection result
-        bboxes = []
-        for box in detection_result[0].boxes:
-            xywh = box.xywh.cpu().clone().numpy().reshape(4, )
-            bboxes.append(xywh)
-        self.last_person_boxes = bboxes
+        self.last_person_boxes = detection_result[0].boxes.xywh.tolist()
         
         # Create point clouds in image frame and vehicle frame
         point_cloud_image, point_cloud_vehicle_frame = self.point_cloud_image()
