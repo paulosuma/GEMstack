@@ -169,7 +169,7 @@ class PedestrianDetector(Component):
 
         idx = [i for i in range(len(point_cloud_image)) if 
                     point_cloud_image[i][0] >= x - w/2 and 
-                    point_cloud_image[i][1] >= y - w/2 and 
+                    point_cloud_image[i][1] >= y - h/2 and 
                     point_cloud_image[i][0] <= x + w/2 and 
                     point_cloud_image[i][1] <= y + h/2]
         points_in_box = [point_cloud_vehicle_frame[i] for i in idx]   # in vehicle frame
@@ -185,7 +185,7 @@ class PedestrianDetector(Component):
 
         # You might want to adjust the dimensions if they are too small or too large
         clamp = lambda n, lbound, ubound: max(min(ubound, n), lbound)
-        dims = [clamp(dimensions[0], 0.5, 1), clamp(dimensions[1], 0.5, 1), clamp(dimensions[2], 1.5, 1.8)]
+        dims = [clamp(dimensions[0], 1.5, 2), clamp(dimensions[1], 1.5, 2), clamp(dimensions[2], 1.6, 2.2)]
         # print("dimensions", dims)
 
         # Create the agent state with the estimated position (in vehicle frame) and dimensions
