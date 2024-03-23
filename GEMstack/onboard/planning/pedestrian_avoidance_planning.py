@@ -20,26 +20,26 @@ def get_resolution(vehicle, all_pedestrians, braking_distance): # collision chec
     res_min = settings.get('planning.pedestrian_avoidance.resolution.min')
     res_max = settings.get('planning.pedestrian_avoidance.resolution.max')
     
-    # resolution = res_min    # use if planner is fast enough
+    resolution = res_min    # use if planner is fast enough
 
     ''' uncomment if planner is too slow
     - this sets resolution in range [res_min, res_max] 
     - sets resolution such that it is proportional to the vehicle-pedestrian distance
     '''
-    vehicle_poly = vehicle.to_object().polygon_parent() # in world frame
-    peds_poly = [a.polygon_parent() for a in all_pedestrians]
-    peds_dist = [collisions.polygon_polygon_distance_2d(vehicle_poly, p) for p in peds_poly]
-    try:
-        d = min(peds_dist) # distance to closest pedestrian
-    except ValueError:
-        d = np.inf
+    # vehicle_poly = vehicle.to_object().polygon_parent() # in world frame
+    # peds_poly = [a.polygon_parent() for a in all_pedestrians]
+    # peds_dist = [collisions.polygon_polygon_distance_2d(vehicle_poly, p) for p in peds_poly]
+    # try:
+    #     d = min(peds_dist) # distance to closest pedestrian
+    # except ValueError:
+    #     d = np.inf
     
-    if d <= braking_distance:
-        resolution = res_min
-    elif d >= 2 * braking_distance: 
-        resolution = res_max
-    else:
-        resolution = round(res_min + (res_max - res_min) * (d / braking_distance - 1), 1)
+    # if d <= braking_distance:
+    #     resolution = res_min
+    # elif d >= 2 * braking_distance: 
+    #     resolution = res_max
+    # else:
+    #     resolution = round(res_min + (res_max - res_min) * (d / braking_distance - 1), 1)
 
     return resolution
 
