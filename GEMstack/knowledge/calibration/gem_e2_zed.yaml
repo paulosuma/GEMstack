@@ -1,9 +1,11 @@
 calibration_date: "2024-03-01"  # Date of calibration YYYY-MM-DD
-calibration_time: "12:30"  # Time in 24 hr format
+calibration_time: "12:45"  # Time in 24 hr format
 
 reference: rear_axle_center  # rear axle center
-rotation: [[-0.044645686603095605, -0.05779423890409078, 0.9973297187777733], 
-           [-0.9983638331237861, 0.038283672954995754, -0.0424734792025802], 
-           [-0.0357267231159747, -0.9975941991788421, -0.05940887997689943]] # rotation matrix mapping z to forward, x to left, y to down
-center_position: [-0.02,0,1.5] # meters, center of Zed camera, guesstimated
-rgb_position: [0.6770893720480622, 0.22433539918879797, 1.527949905639007] # meters, center of color (left) camera
+
+# mapping zed frame to vehicle frame
+rotation: [[-0.03663318227063323, -0.058917229308811735, 0.9975904847432411], 
+           [-0.9987931247588363, 0.03483922464892662, -0.03461975683464217],
+           [-0.0327155786833422, -0.9976547441579189, -0.060122394917394906]] # rotation matrix mapping z to forward, x to left, y to down
+rgb_position: [1.027655858154719, 0.026029622956912503, 1.484639925359915] # meters, center of color (left) camera
+center_position: [1.027655858154719, 0, 1.484639925359915] # meters, center of Zed camera

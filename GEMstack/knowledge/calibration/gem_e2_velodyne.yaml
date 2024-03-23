@@ -1,8 +1,10 @@
 calibration_date: "2024-03-01"  # Date of calibration YYYY-MM-DD
-calibration_time: "12:30"  # Time in 24 hr format
+calibration_time: "12:45"  # Time in 24 hr format
 
 reference: rear_axle_center  # rear axle center
+
+# mapping lidar frame to vehicle frame
 position: [0.87, 0, 1.705]
-rotation: [[0.9973763699875017, 0.043861305694493286, 0.05758942431947], 
-           [-0.042151360457271754, 0.9986431654663658, -0.030578917885326348], 
-           [-0.05885251748084231, 0.02807121811554394, 0.9978719296080418]] # mapping lidar frame to vehicle frame
+rotation: [[0.997302538419778, 0.0455971909064793, 0.057519981274857745],
+           [-0.0438924768913897, 0.9985687257401924, -0.030560687965127887],
+           [-0.05883113562351797, 0.02795355708913585, 0.9978764934235658]]
