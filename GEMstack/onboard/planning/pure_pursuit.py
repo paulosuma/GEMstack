@@ -210,7 +210,8 @@ class PurePursuitTrajectoryTracker(Component):
         #print("Desired wheel angle",wheel_angle)
         steering_angle = np.clip(front2steer(wheel_angle), self.pure_pursuit.steering_angle_range[0], self.pure_pursuit.steering_angle_range[1])
         #print("Desired steering angle",steering_angle)
-        self.vehicle_interface.send_command(self.vehicle_interface.simple_command(accel,steering_angle, vehicle))
+        # self.vehicle_interface.send_command(self.vehicle_interface.simple_command(accel,steering_angle, vehicle))
+        self.vehicle_interface.send_command(self.vehicle_interface.simple_command(accel, 0, vehicle))
     
     def healthy(self):
         return self.pure_pursuit.path is not None
