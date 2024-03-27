@@ -27,6 +27,10 @@ class GNSSStateEstimator(Component):
     # Get GNSS information
     def gnss_callback(self, reading : GNSSReading):
         self.gnss_pose = reading.pose
+<<<<<<< HEAD
+=======
+        self.gnss_speed = reading.speed
+>>>>>>> main
         self.status = reading.status
     
     def rate(self):
@@ -60,8 +64,9 @@ class GNSSStateEstimator(Component):
         raw = readings.to_state(vehicle_pose_global)
 
         #filtering speed
-        filt_vel     = self.speed_filter(raw.v)
-        raw.v = filt_vel
+        raw.v = self.gnss_speed
+        #filt_vel     = self.speed_filter(raw.v)
+        #raw.v = filt_vel
         return raw
         
 
