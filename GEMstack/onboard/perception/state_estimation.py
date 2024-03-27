@@ -27,10 +27,7 @@ class GNSSStateEstimator(Component):
     # Get GNSS information
     def gnss_callback(self, reading : GNSSReading):
         self.gnss_pose = reading.pose
-<<<<<<< HEAD
-=======
         self.gnss_speed = reading.speed
->>>>>>> main
         self.status = reading.status
     
     def rate(self):
@@ -72,7 +69,6 @@ class GNSSStateEstimator(Component):
 
 
 class OmniscientStateEstimator(Component):
-    """A state estimator used for the simulator which provides perfect state information"""
     def __init__(self, vehicle_interface : GEMInterface):
         self.vehicle_interface = vehicle_interface
         if 'gnss' not in vehicle_interface.sensors():
@@ -95,7 +91,3 @@ class OmniscientStateEstimator(Component):
 
     def update(self) -> VehicleState:
         return self.vehicle_state
-    
-
-#alias, will be deprecated by end of February
-FakeStateEstimator = OmniscientStateEstimator
