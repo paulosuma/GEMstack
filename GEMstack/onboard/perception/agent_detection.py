@@ -3,7 +3,7 @@ from ...utils import settings
 from ...mathutils import collisions, transforms
 from ..interface.gem import GEMInterface
 from ..component import Component
-from .pcd_manipulation import project_point_cloud
+from .point_cloud_manipulation import transform_point_cloud
 
 from ultralytics import YOLO
 try:
@@ -28,13 +28,6 @@ class AgentDetector(Component):
         self.camera_info = None
         self.camera_image = None
         self.lidar_point_cloud = None
-        
-        self.T_lidar = np.eye(4)
-        self.T_lidar[:3,:3] = np.array(settings.get('vehicle.calibration.top_lidar.rotation'))
-        self.T_lidar[:3,3] = np.array(settings.get('vehicle.calibration.top_lidar.position'))
-        self.T_camera = np.eye(4)
-        self.T_camera[:3,:3] = np.array(settings.get('vehicle.calibration.front_camera.rotation'))
-        self.T_camera[:3,3] = np.array(settings.get('vehicle.calibration.front_camera.rgb_position'))
         
         self.detector = YOLO(settings.get('perception.agent_detection.model'))
         
@@ -99,9 +92,8 @@ class AgentDetector(Component):
         """
 
         # Obtain point clouds in image frame and vehicle frame
-        pcd_image_pixels, pcd_vehicle_frame = project_point_cloud(
-            self.lidar_point_cloud, self.T_lidar, self.T_camera, 
-            np.array(self.camera_info.P).reshape(3,4), 
+        pcd_image_pixels, pcd_vehicle_frame = transform_point_cloud(
+            self.lidar_point_cloud, np.array(self.camera_info.P).reshape(3,4), 
             self.camera_image.width, self.camera_info.height
         )
 

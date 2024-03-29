@@ -1,16 +1,26 @@
+from ...utils import settings
 import numpy as np
 from typing import Tuple
 
 
-def transform_point_cloud(pcd, T):
-    """Transforms a point cloud in one frame to another frame.
+T_lidar = np.eye(4)
+T_lidar[:3,:3] = np.array(settings.get('vehicle.calibration.top_lidar.rotation'))
+T_lidar[:3,3] = np.array(settings.get('vehicle.calibration.top_lidar.position'))
+
+T_camera = np.eye(4)
+T_camera[:3,:3] = np.array(settings.get('vehicle.calibration.front_camera.rotation'))
+T_camera[:3,3] = np.array(settings.get('vehicle.calibration.front_camera.rgb_position'))
+
+
+def project_point_cloud(pcd, T):
+    """Projects a point cloud in one frame to another frame.
 
     Args:
         pcd: 3D point cloud
         T: 4x4 transformation matrix (from old to new frame)
 
     Returns:
-        pcd2: 3D point cloud in the new frame
+        pcd_new_frame: 3D point cloud in the new frame
     """
     
     pcd_temp = np.hstack((pcd, np.ones((pcd.shape[0], 1))))
@@ -43,13 +53,11 @@ def project_point_cloud_camera_to_image(pcd : np.ndarray, P : np.ndarray, xrange
     return pcd_image_pixels, indices
 
 
-def project_point_cloud(pcd, T_lidar, T_camera, camera_P, image_w, image_h):
-    """Projects a point cloud in the lidar frame to the vehicle and the image frames.
+def transform_point_cloud(pcd, camera_P, image_w, image_h):
+    """Transforms a point cloud in the lidar frame to the vehicle and the image frames.
 
     Args:
         pcd: 3D point cloud in the lidar frame
-        T_lidar: lidar to vehicle transformation
-        T_camera: camera to vehicle transformation
         camera_P: intrinsic matrix
         image_w: image width
         image_h: image height
