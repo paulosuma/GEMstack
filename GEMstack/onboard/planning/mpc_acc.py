@@ -66,8 +66,8 @@ class ACCMPC(object):
         # The control is the acceleration (for now, TODO add lane-keeping)
         n_x = 5
         n_u = 1
-        x = ca.MX.sym('x', n_x, self.horizon_steps+1)
-        u = ca.MX.sym('u', n_u, self.horizon_steps)
+        x = ca.MX.sym('X', n_x, self.horizon_steps+1)
+        u = ca.MX.sym('U', n_u, self.horizon_steps)
 
         # Initial constraints (assume 0 acceleration at start; TODO is this true?)
         g = []
@@ -89,8 +89,35 @@ class ACCMPC(object):
             x_next = ca.mtimes(A, x[:, k]) + ca.mtimes(B, u[:, k] + G * [self.leading_accel])
             g.append(x[:,k+1] - x_next)
         
-        # TODO objective function
+            # Objective function
+            # Minimize the difference between the actual and desired distance between cars,
+            # the relative velocity of the cars, and the magnitude of acceleration and jerk
+            desired_dist = self.min_leading_dist + self.desired_time_headway * x[1,k]
+            dist_error = x[0, k] - desired_dist
+            obj += ca.sumsqr(dist_error) + ca.sumsqr(x[2,k]) + ca.sumsqr(x[3, k]) + ca.sumsqr(x[4, k])
 
+            # Hard constraints
+            # Constrain the velocity, acceleration, deceleration, and jerk
+            g.append(x[1,k] - 0) # velocity >= 0
+            g.append(self.desired_speed - x[1,k]) # velocity <= max speed
+            g.append(x[3,k] - self.max_decel) # acceleration >= a_min
+            g.append(self.max_accel - x[3,k]) # acceleration <= a_max
+            g.append(x[4,k] - self.min_jerk) # jerk >= jerk_min
+            g.append(self.max_jerk - x[4,k]) # jerk <= jerk_max
+
+        opt_variables = ca.vertcat(ca.reshape(x, n_x*(self.horizon_steps+1), 1), ca.reshape(u, n_u*self.horizon_steps, 1))
+        nlp = {'f': obj, 'x': opt_variables, 'g': ca.vertcat(*g)}
+        solver = ca.nlpsol('solver', 'ipopt', nlp)
+
+        # Solve the NLP
+        sol = solver(lbx=-ca.inf, ubx=ca.inf, lbg=0, ubg=0)
+        optimal_vars = np.array(sol['x'])
+
+        # Extract optimal control and state trajectories
+        optimal_x = np.reshape(optimal_vars[:n_x*(self.horizon_steps+1)], (n_x, self.horizon_steps+1))
+        optimal_u = np.reshape(optimal_vars[n_x*(self.horizon_steps+1):], (n_u, self.horizon_steps))
+
+        return optimal_u, optimal_x
 
 class ACCTrajectoryPlanner(Component):
     def __init__(self, vehicle_interface=None, **args):
