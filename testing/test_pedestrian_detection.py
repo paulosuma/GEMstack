@@ -5,7 +5,7 @@ import cv2
 sys.path.append(os.getcwd())
 abs_path = os.path.abspath(os.path.dirname(__file__))
 
-from GEMstack.onboard.perception.pedestrian_detection import PedestrianDetector, lidar_to_image, lidar_to_vehicle, filter_lidar_by_range
+from GEMstack.onboard.perception.pedestrian_detection_1 import PedestrianDetector, lidar_to_image, lidar_to_vehicle, filter_lidar_by_range
 from GEMstack.onboard.interface.gem import GEMInterface
 # from GEMstack.utils.mpl_visualization import plot_object
 from GEMstack.utils.klampt_visualization import plot_object
