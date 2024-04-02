@@ -60,6 +60,9 @@ class ACCMPC(object):
         leading_y = self.leading_vehicle.pose.y if self.leading_vehicle else np.inf
         leading_speed = self.leading_vehicle.velocity if self.leading_vehicle else np.inf
 
+        # Make the optimization problem
+        opti = ca.Opti()
+
         # State
         # The state X is made up of the distance between the vehicle and the leading vehicle,
         # the velocity of the vehicle, the relative velocity (leading - our vehicle), 
@@ -67,29 +70,29 @@ class ACCMPC(object):
         # The control is the acceleration (for now, TODO add lane-keeping)
         n_x = 5
         n_u = 1
-        x = ca.MX.sym('X', n_x, self.horizon_steps+1)
-        u = ca.MX.sym('U', n_u, self.horizon_steps)
+        x = opti.variable(n_x, self.horizon_steps+1)
+        u = opti.variable(n_u, self.horizon_steps)
 
         # Initial constraints (assume 0 acceleration at start; TODO is this true?)
-        g = []
         initial_dist = np.sqrt((curr_x - leading_x)**2 + (curr_y - leading_y)**2)
-        g.append(x[:,0] - np.array([initial_dist, speed, leading_speed - speed, 0, 0]))
+        opti.subject_to(x[:,0] == [initial_dist, speed, leading_speed - speed, 0, 0])
 
         # Objective function
         obj = 0
 
-        # Dynamics constraints
-        A = np.array([[1.0, 0.0, self.sim_dt, -0.5 * self.sim_dt**2, 0.0],
-                      [0.0, 1.0, 0.0, self.sim_dt, 0.0],
-                      [0.0, 0.0, 1.0, -1.0 * self.sim_dt, 0.0],
-                      [0.0, 0.0, 0.0, 1.0 - self.sim_dt / self.delay, 0.0],
-                      [0.0, 0.0, 0.0, -1.0 / self.delay, 0.0]])
-        B = np.array([0.0, 0.0, 0.0, self.sim_dt / self.delay, 1.0 / self.delay]).T
-        G = np.array([0.5 * self.sim_dt**2, 0.0, self.sim_dt, 0.0, 0.0]).T
+        # Dynamics constraints per timestep
         for k in range(self.horizon_steps):
-            x_next = ca.mtimes(A, x[:, k]) + ca.mtimes(B, u[:, k]) + G * [self.leading_accel]
-            print(x_next)
-            g.append(x[:,k+1] - x_next)
+            dist_next = x[0,k] + self.sim_dt * x[2,k] - 0.5 * self.sim_dt * x[3,k] + 0.5 * (self.sim_dt**2) * self.leading_accel
+            v_next = x[1,k] + self.sim_dt * x[3,k]
+            rel_v_next = x[2,k] - self.sim_dt * x[2,k] + self.sim_dt * self.leading_accel
+            a_next = (1.0 - self.sim_dt / self.delay) * x[3,k] + (self.sim_dt / self.delay) * u[0,k]
+            j_next = (-1.0 / self.delay) * x[4,k] + (1.0 / self.delay) * u[0,k]
+
+            opti.subject_to(x[0,k+1] == dist_next)
+            opti.subject_to(x[1,k+1] == v_next)
+            opti.subject_to(x[2,k+1] == rel_v_next)
+            opti.subject_to(x[3,k+1] == a_next)
+            opti.subject_to(x[4,k+1] == j_next)
         
             # Objective function
             # Minimize the difference between the actual and desired distance between cars,
@@ -98,27 +101,20 @@ class ACCMPC(object):
             dist_error = x[0, k] - desired_dist
             obj += ca.sumsqr(dist_error) + ca.sumsqr(x[2,k]) + ca.sumsqr(x[3, k]) + ca.sumsqr(x[4, k])
 
-            # Hard constraints
-            # Constrain the velocity, acceleration, deceleration, and jerk
-            g.append(x[1,k+1] - 0) # velocity >= 0
-            g.append(self.desired_speed - x[1,k+1]) # velocity <= max speed
-            g.append(x[3,k+1] - self.max_decel) # acceleration >= a_min
-            g.append(self.max_accel - x[3,k+1]) # acceleration <= a_max
-            g.append(x[4,k+1] - self.min_jerk) # jerk >= jerk_min
-            g.append(self.max_jerk - x[4,k+1]) # jerk <= jerk_max
-
-        opt_variables = ca.vertcat(ca.reshape(x, n_x*(self.horizon_steps+1), 1), ca.reshape(u, n_u*self.horizon_steps, 1))
-        nlp = {'f': obj, 'x': opt_variables, 'g': ca.vertcat(*g)}
-        solver = ca.nlpsol('solver', 'ipopt', nlp)
-        print(g)
+        # Hard constraints
+        # Constrain the velocity, acceleration, deceleration, and jerk
+        opti.subject_to(opti.bounded(0, x[1,:], self.desired_speed)) # 0 <= velocity <= max speed
+        opti.subject_to(opti.bounded(self.max_decel, x[3,:], self.max_accel)) # a_min <= accelereration <= a_max
+        opti.subject_to(opti.bounded(self.min_jerk, x[4,:], self.max_jerk)) # j_min <= jerk <= j_max
 
         # Solve the NLP
-        sol = solver(lbx=-ca.inf, ubx=ca.inf, lbg=0, ubg=0)
-        optimal_vars = np.array(sol['x'])
+        opti.minimize(obj)
+        opti.solver('ipopt')
+        sol = opti.solve()
 
         # Extract optimal control and state trajectories
-        optimal_x = np.reshape(optimal_vars[:n_x*(self.horizon_steps+1)], (n_x, self.horizon_steps+1))
-        optimal_u = np.reshape(optimal_vars[n_x*(self.horizon_steps+1):], (n_u, self.horizon_steps))
+        optimal_u = sol.value(u[0,:])
+        optimal_x = sol.value(x)
 
         return optimal_u, optimal_x
 
