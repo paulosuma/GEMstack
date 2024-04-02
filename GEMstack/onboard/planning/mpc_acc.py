@@ -37,6 +37,7 @@ class ACCMPC(object):
         self.leading_vehicle = None
 
     def set_leading_vehicle(self, leading_vehicle : AgentState):
+        # TODO if the leading car changes, this should not track from the last timestep
         print("SET LEADING CAR {}".format(leading_vehicle))
         t = leading_vehicle.pose.t
 
@@ -45,7 +46,8 @@ class ACCMPC(object):
         dt = t - self.t_last
         
         if self.leading_vehicle:
-            self.leading_accel = (leading_vehicle.velocity - self.leading_vehicle.velocity) / dt
+            self.leading_accel = (np.array(leading_vehicle.velocity) -
+                                   np.array(self.leading_vehicle.velocity)) / dt
 
         self.leading_vehicle = leading_vehicle
     
@@ -120,8 +122,8 @@ class ACCMPC(object):
 
         # Hard constraints
         # Constrain the velocity, acceleration, deceleration, and jerk
-        opti.subject_to(opti.bounded(0, x[1,:], self.desired_speed)) # 0 <= velocity <= max speed
-        opti.subject_to(opti.bounded(self.max_decel, x[3,:], self.max_accel)) # a_min <= accelereration <= a_max
+        opti.subject_to(opti.bounded(-1.0 * self.desired_speed, x[1,:], self.desired_speed)) # 0 <= velocity <= max speed
+        opti.subject_to(opti.bounded(-1.0 * self.max_decel, x[3,:], self.max_accel)) # a_min <= accelereration <= a_max
         opti.subject_to(opti.bounded(self.min_jerk, x[4,:], self.max_jerk)) # j_min <= jerk <= j_max
 
         # Solve the NLP
@@ -132,8 +134,10 @@ class ACCMPC(object):
         # Extract optimal control and state trajectories
         optimal_u = sol.value(u[0,:])
         optimal_x = sol.value(x)
+        print("OPTIMAL U {}".format(optimal_u))
+        print("OPTIMAL X {}".format(optimal_x))
 
-        return optimal_u, optimal_x
+        return optimal_u[0], optimal_x
 
 class ACCTrajectoryPlanner(Component):
     def __init__(self, vehicle_interface=None, **args):
