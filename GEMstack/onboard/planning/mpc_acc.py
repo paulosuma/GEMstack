@@ -37,6 +37,7 @@ class ACCMPC(object):
         self.leading_vehicle = None
 
     def set_leading_vehicle(self, leading_vehicle : AgentState):
+        print("SET LEADING CAR {}".format(leading_vehicle))
         t = leading_vehicle.pose.t
 
         if self.t_last is None:
@@ -50,6 +51,10 @@ class ACCMPC(object):
     
     def compute(self, state : VehicleState, component : Component = None):
         assert state.pose.frame != ObjectFrameEnum.CURRENT
+
+        if self.leading_vehicle is None:
+            print("NO LEADING CAR")
+            return 0, None
   
         curr_x = state.pose.x
         curr_y = state.pose.y
@@ -75,7 +80,19 @@ class ACCMPC(object):
 
         # Initial constraints (assume 0 acceleration at start; TODO is this true?)
         initial_dist = np.sqrt((curr_x - leading_x)**2 + (curr_y - leading_y)**2)
-        opti.subject_to(x[:,0] == [initial_dist, speed, leading_speed - speed, 0, 0])
+        initial_rel_speed = np.linalg.norm(leading_speed - speed)
+        initial_state = ca.vertcat(initial_dist, speed, initial_rel_speed, 0, 0)
+        print("initial dist")
+        print(initial_dist)
+        print("rel speed")
+        print(initial_rel_speed)
+        print("initial state")
+        print(initial_state)
+        opti.subject_to(x[:,0] == initial_state)
+
+        
+        print("leading car")
+        print(self.leading_vehicle)
 
         # Objective function
         obj = 0
@@ -135,6 +152,7 @@ class ACCTrajectoryPlanner(Component):
     def update(self, state : AllState):
         vehicle = state.vehicle
         agents = state.agents
+        print("AGENTS {}".format(agents))
         leading = None # TODO figure out the best way to get the leading car
         for k, a in agents.items():
             if a.type == AgentEnum.CAR:
@@ -151,4 +169,4 @@ class ACCTrajectoryPlanner(Component):
         self.vehicle_interface.send_command(self.vehicle_interface.simple_command(accel,steering_angle, vehicle))
     
     def healthy(self):
-        return self.acc_mpc.leading_vehicle is not None # TODO figure out what this should be
+        return True
