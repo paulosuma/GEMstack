@@ -82,7 +82,7 @@ class ACCMPC(object):
 
         # Dynamics constraints per timestep
         for k in range(self.horizon_steps):
-            dist_next = x[0,k] + self.sim_dt * x[2,k] - 0.5 * self.sim_dt * x[3,k] + 0.5 * (self.sim_dt**2) * self.leading_accel
+            dist_next = x[0,k] + self.sim_dt * x[2,k] - 0.5 * (self.sim_dt**2) * x[3,k] + 0.5 * (self.sim_dt**2) * self.leading_accel
             v_next = x[1,k] + self.sim_dt * x[3,k]
             rel_v_next = x[2,k] - self.sim_dt * x[2,k] + self.sim_dt * self.leading_accel
             a_next = (1.0 - self.sim_dt / self.delay) * x[3,k] + (self.sim_dt / self.delay) * u[0,k]
