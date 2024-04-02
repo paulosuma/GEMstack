@@ -46,8 +46,13 @@ class ACCMPC(object):
         dt = t - self.t_last
         
         if self.leading_vehicle:
-            self.leading_accel = (np.array(leading_vehicle.velocity) -
+            self.leading_accel = np.linalg.norm(np.array(leading_vehicle.velocity) -
                                    np.array(self.leading_vehicle.velocity)) / dt
+            print("SET LEADING ACCEL {}".format(self.leading_accel))
+        
+        # TODO figure out why we're getting nan
+        if np.isnan(self.leading_accel):
+            self.leading_accel = 0
 
         self.leading_vehicle = leading_vehicle
     
@@ -129,7 +134,16 @@ class ACCMPC(object):
         # Solve the NLP
         opti.minimize(obj)
         opti.solver('ipopt')
-        sol = opti.solve()
+        try:
+            sol = opti.solve()
+        except Exception as e:
+            # Print values of some variables of interest at the moment of failure
+            print("Debugging values at failure:")
+            print("x:", opti.debug.value(x))
+            print("u:", opti.debug.value(u))
+            # Add more variables or parameters as needed
+            raise e  # Optionally re-raise the exception to halt the script and inspect
+
 
         # Extract optimal control and state trajectories
         optimal_u = sol.value(u[0,:])
