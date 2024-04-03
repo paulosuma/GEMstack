@@ -1,100 +1,41 @@
 from ...state import AllState,VehicleState,ObjectPose,ObjectFrameEnum,AgentState,AgentEnum,AgentActivityEnum
 from ...utils import settings
-from ...mathutils import collisions, transforms
+from ...mathutils import collisions
 from ..interface.gem import GEMInterface
 from ..component import Component
 from .point_cloud_manipulation import transform_point_cloud
 
 from ultralytics import YOLO
-try:
-    from sensor_msgs.msg import CameraInfo
-    import rospy
-except ImportError:
-    pass
-import cv2
 import numpy as np
 from typing import Dict
 import threading
 import copy
-import time
 
 
-class AgentDetector(Component):
+class AgentDetector():
     """Detects and tracks other agents."""
-    def __init__(self, vehicle_interface : GEMInterface):
-        self.vehicle_interface = vehicle_interface
+    def __init__(self, vehicle : VehicleState, 
+                 camera_info, camera_image, lidar_point_cloud):
+        self.vehicle = vehicle
         
-        self.camera_info_sub = None
-        self.camera_info = None
-        self.camera_image = None
-        self.lidar_point_cloud = None
+        self.camera_info = camera_info
+        self.camera_image = camera_image
+        self.lidar_point_cloud = lidar_point_cloud
         
         self.detector = YOLO(settings.get('perception.agent_detection.model'))
-        
-        self.counter = 0
-        self.prev_agent_states = {}
-
-    def rate(self):
-        return settings.get('perception.agent_detection.rate')
-    
-    def state_inputs(self):
-        return ['vehicle']
-    
-    def state_outputs(self):
-        return ['agents']
-    
-    def initialize(self):
-        # use image_callback whenever 'front_camera' gets a reading, and it expects images of type cv2.Mat
-        self.vehicle_interface.subscribe_sensor('front_camera', self.image_callback, cv2.Mat)
-        
-        # use lidar_callback whenever 'top_lidar' gets a reading, and it expects numpy arrays
-        self.vehicle_interface.subscribe_sensor('top_lidar', self.lidar_callback, np.ndarray)
-        
-        # subscribe to the Zed CameraInfo topic
-        self.camera_info_sub = rospy.Subscriber('/zed2/zed_node/rgb/camera_info', CameraInfo, self.camera_info_callback)
-    
-    def image_callback(self, image : cv2.Mat):
-        self.camera_image = image
-
-    # Uncomment before running on the vehicle
-    def camera_info_callback(self, info : CameraInfo):
-        self.camera_info = info
-
-    def lidar_callback(self, point_cloud: np.ndarray):
-        self.lidar_point_cloud = point_cloud
-    
-    def update(self, vehicle : VehicleState) -> Dict[str,AgentState]:
-        if [data for data in [self.camera_info, self.camera_image, self.lidar_point_cloud] if data is None]:
-            return {}   # no image data or lidar data or camera info yet
-        
-        # debugging
-        # self.save_data()
-
-        t1 = time.time()
-        detected_agents = self.detect_agents()
-
-        t2 = time.time()
-        agent_states = self.track_agents(vehicle, detected_agents)
-        t3 = time.time()
-
-        print('Detection time:', t2 - t1)
-        print('Shape estimation and tracking time:', t3 - t2)
-
-        self.prev_agent_states = agent_states
-        return agent_states
 
     def box_to_agent(self, bbox_xywh, bbox_cls):
         """Creates a 3D agent state from an (x,y,w,h) bounding box.
         
         Uses the image, the camera intrinsics, the lidar point cloud, 
         and the calibrated camera / lidar poses to get a good estimate 
-        of the other agent's pose and dimensions.
+        of the other agent's pose (in vehicle frame) and dimensions.
         """
 
         # Obtain point clouds in image frame and vehicle frame
         pcd_image_pixels, pcd_vehicle_frame = transform_point_cloud(
             self.lidar_point_cloud, np.array(self.camera_info.P).reshape(3,4), 
-            self.camera_image.width, self.camera_info.height
+            self.camera_info.width, self.camera_info.height
         )
 
         x, y, w, h = bbox_xywh
@@ -111,7 +52,6 @@ class AgentDetector(Component):
         center = np.mean(points, axis=0)
         dimensions = np.max(points, axis=0) - np.min(points, axis=0)
 
-        # Create the agent state with the estimated position (in vehicle frame) and dimensions
         # For a PhysicalObject, 
         #   origin is at the object's center in the x-y plane and at the bottom in the z axis
         pose = ObjectPose(t=0, x=center[0], y=center[1], z=center[2] - dimensions[2]/2, 
@@ -127,7 +67,7 @@ class AgentDetector(Component):
         return AgentState(pose=pose, dimensions=dimensions, outline=None, 
                           type=type_dict[str(bbox_cls)], activity=AgentActivityEnum.STOPPED, 
                           velocity=(0,0,0), yaw_rate=0)
-    
+
     def detect_agents(self):
         yolo_class_ids = [
             0,  # person
@@ -146,17 +86,17 @@ class AgentDetector(Component):
         
         return detected_agents
     
-    def deduplication(self, agent):
+    def deduplication(self, agent, prev_states):
         """ For dedupliction:
-        - Check if agent was detected before using prev_agent_states.
+        - Check if agent was detected before using the previous states.
         - If seen before, 
             return the dict key corresponding to the previous agent matching the current one. 
         """
         
         polygon = agent.polygon_parent()
 
-        for key in self.prev_agent_states:
-            prev_agent = self.prev_agent_states[key]
+        for key in prev_states:
+            prev_agent = prev_states[key]
             prev_polygon = prev_agent.polygon_parent()
 
             if collisions.polygon_intersects_polygon_2d(polygon, prev_polygon):
@@ -164,29 +104,28 @@ class AgentDetector(Component):
         
         return None
 
-    def track_agents(self, vehicle : VehicleState, detected_agents):
+    def track_agents(self, detected_agents, prev_states, counter, rate):
         """ Given a list of detected agents, updates the state of the agents.
         - Keep track of which agents were detected before.
         - For each agent, assign appropriate ids and estimate velocities.
         """
+        dt = 1 / rate # time between updates
 
-        dt = 1 / self.rate() # time between updates
-
-        agent_states = {}
+        states = {}
 
         for agent in detected_agents:
-            prev_agent_key = self.deduplication(agent)
+            prev_key = self.deduplication(agent, prev_states)
 
-            if prev_agent_key is None: # new agent
+            if prev_key is None: # new agent
                 # velocity of a new agent is 0 by default
-                agent_states['agent_' + str(self.counter)] = agent
-                self.counter += 1
+                states['agent_' + str(counter)] = agent
+                counter += 1
             else:
-                prev_agent = self.prev_agent_states[prev_agent_key]
+                prev_agent = self.prev_states[prev_key]
                 prev_pose = prev_agent.pose
 
                 # absolute vel = vel w.r.t vehicle + vehicle velocity 
-                v_x = (agent.pose.x - prev_pose.x) / dt + vehicle.v
+                v_x = (agent.pose.x - prev_pose.x) / dt + self.vehicle.v
                 v_y = (agent.pose.y - prev_pose.y) / dt
                 v_z = (agent.pose.z - prev_pose.z) / dt
 
@@ -194,9 +133,9 @@ class AgentDetector(Component):
                     agent.activity = AgentActivityEnum.MOVING
                     agent.velocity = (v_x, v_y, v_z)
             
-                agent_states[prev_agent_key] = agent            
+                states[prev_key] = agent            
         
-        return agent_states
+        return states, counter
 
 
 class OmniscientAgentDetector(Component):

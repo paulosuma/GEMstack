@@ -22,9 +22,9 @@ control:
         pid_d: 0.0
 
 perception:
+    rate: 5.0
     agent_detection:
         model: !relative_path '../detection/yolov8n.pt'
-        rate: 5.0
         tolerance_factor: 1  # to make agent detection tolerant to errors in calibration
 
 #configure the simulator, if using
