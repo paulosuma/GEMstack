@@ -66,8 +66,8 @@ def setup_mpc(N, dt, L, x0, y0, theta0, v0, x_goal, y_goal, theta_goal, v_goal, 
         penalty_scale = 2000
         for obs in obstacles:
             obs_type, obs_x, obs_y, obs_vx, obs_vy, obs_w, obs_l, obs_h = obs
-            obs_x = obs_x + (obs_vx * dt)
-            obs_y = obs_y + (obs_vy * dt)
+            obs_x = obs_x + (obs_vx * dt * k)
+            obs_y = obs_y + (obs_vy * dt * k)
 
             # Get the displacement between us and them
             disp_x = obs_x - X[0, k]
@@ -75,7 +75,7 @@ def setup_mpc(N, dt, L, x0, y0, theta0, v0, x_goal, y_goal, theta_goal, v_goal, 
             disp_angle = ca.atan2(disp_y, disp_x) * 180.0 / ca.pi
 
             # Calculate distance
-            distance_squared = (X[0, k] - obs_x)**2 + (X[1, k] - obs_y)**2
+            distance_squared = disp_x**2 + disp_y**2
 
             # Check if the obstacle is a car
             is_car = (obs_type == AgentEnum.CAR)
