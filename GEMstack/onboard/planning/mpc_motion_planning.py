@@ -5,6 +5,7 @@ from ...knowledge.vehicle.dynamics import acceleration_to_pedal_positions
 from ...state import AllState,VehicleState,Route,ObjectFrameEnum,Roadmap,Roadgraph
 from ...state.vehicle import VehicleState,ObjectFrameEnum
 from ...state.trajectory import Path,Trajectory,compute_headings
+from ...state.agent import AgentEnum
 from ...knowledge.vehicle.geometry import front2steer
 from ..interface.gem import GEMVehicleCommand
 from ..component import Component
@@ -17,7 +18,7 @@ safety_margin = 0.1
 dt = 0.5
 
 # Setup the MPC problem 
-def setup_mpc(N, dt, L, x0, y0, theta0, v0, x_goal, y_goal, theta_goal, v_goal, obstacles):
+def setup_mpc(N, dt, L, x0, y0, theta0, v0, x_goal, y_goal, theta_goal, v_goal, obstacles, min_dist, time_headway, front_degree_range):
     """
     Setup and solve the MPC problem.
     Returns the first control inputs (v, delta) from the optimized trajectory.
@@ -45,6 +46,7 @@ def setup_mpc(N, dt, L, x0, y0, theta0, v0, x_goal, y_goal, theta_goal, v_goal, 
     # opti.subject_to(X[:,0] == [x0, y0, theta0, v0, delta0])
 
     # Dynamics constraints
+    obstacle_penalty = 0
     for k in range(N):
         x_next = X[0,k] + X[3,k]*ca.cos(X[2,k])*dt
         y_next = X[1,k] + X[3,k]*ca.sin(X[2,k])*dt
@@ -62,12 +64,43 @@ def setup_mpc(N, dt, L, x0, y0, theta0, v0, x_goal, y_goal, theta_goal, v_goal, 
         # Obstacle constraints
         # TODO: Add soft constraints
         penalty_scale = 2000
-        obstacle_penalty = 0
         for obs in obstacles:
-            obs_x, obs_y, obs_w, obs_l, obs_h = obs
-            distance_squared = (X[0,k] - obs_x)**2 + (X[1,k] - obs_y)**2
-            # opti.subject_to(distance_squared >= obs_w**2)
-            obstacle_penalty += penalty_scale / (distance_squared + 1)
+            obs_type, obs_x, obs_y, obs_vx, obs_vy, obs_w, obs_l, obs_h = obs
+            obs_x = obs_x + (obs_vx * dt)
+            obs_y = obs_y + (obs_vy * dt)
+
+            # Get the displacement between us and them
+            disp_x = obs_x - X[0, k]
+            disp_y = obs_y - X[1, k]
+            disp_angle = ca.atan2(disp_y, disp_x) * 180.0 / ca.pi
+
+            # Calculate distance
+            distance_squared = (X[0, k] - obs_x)**2 + (X[1, k] - obs_y)**2
+
+            # Check if the obstacle is a car
+            is_car = (obs_type == AgentEnum.CAR)
+
+            # Check if they are in front of us (within range)
+            in_front = ca.fabs(disp_angle - X[2, k]) <= front_degree_range
+
+            # Condition to apply car penalty
+            car_in_front = ca.logic_and(is_car, in_front)
+
+            # Keep a constant time headway distance based on current speed
+            desired_dist = min_dist + time_headway * X[3, k]
+            real_dist = ca.sqrt(distance_squared)
+
+            # Calculate penalty for car in front within desired distance
+            car_penalty = ca.sumsqr(desired_dist - real_dist)
+            
+            # Calculate default penalty for other cases
+            default_penalty = penalty_scale / (distance_squared + 1)
+
+            # Apply car penalty if condition is met, otherwise apply default penalty
+            penalty_to_apply = ca.if_else(car_in_front, car_penalty, default_penalty)
+
+            # Add the appropriate penalty
+            obstacle_penalty += penalty_to_apply
 
 
     # Control costraints
@@ -104,6 +137,9 @@ class MPCTrajectoryPlanner(Component):
         self.vehicle_interface = vehicle_interface
         self.N = 10
         self.steering_angle_range = [settings.get('vehicle.geometry.min_steering_angle'),settings.get('vehicle.geometry.max_steering_angle')]
+        self.min_dist = settings.get('model_predictive_controller.min_dist', 10.0) # meters
+        self.time_headway = settings.get('model_predictive_controller.time_headway', 5.0) # seconds
+        self.front_degree_range = settings.get('model_predictive_controller.front_degree_range', 15.0) # degrees
 
     def rate(self):
         return 10.0
@@ -123,10 +159,11 @@ class MPCTrajectoryPlanner(Component):
         x_goal, y_goal, theta_goal, v_goal = *route.points[-1], 0., 0.
 
         agents = [a.to_frame(ObjectFrameEnum.START, start_pose_abs=state.start_vehicle_pose) for a in agents.values()]
-        agents = [[a.pose.x, a.pose.y, *a.dimensions] for a in agents]
+        agents = [[a.type, a.pose.x, a.pose.y, a.velocity[0], a.velocity[1], *a.dimensions] for a in agents]
 
         wheel_angle, accel = setup_mpc(self.N, dt, L, x_start, y_start, theta_start, v_start, \
-                                              x_goal, y_goal, theta_goal, v_goal, agents)
+                                              x_goal, y_goal, theta_goal, v_goal, agents, \
+                                                self.min_dist, self.time_headway, self.front_degree_range)
         # wheel_angle, accel = setup_mpc(self.N, dt, L, x_start, y_start, theta_start, v_start, delta_start,\
         #                                       x_goal, y_goal, theta_goal, v_goal, agents)
         print(wheel_angle, accel)
