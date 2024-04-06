@@ -14,9 +14,16 @@ drive:
         state_estimation : GNSSStateEstimator
         perception_normalization : StandardPerceptionNormalizer
     planning:
+        route_planning:
+            type: DummyRoutePlanner
+            args: {start: [0.,0.,0.,0.,0.], end: [30.,0.,0.,0.,0.]}
+        # mpc_controller:
+        #     type: mpc_acc.ACCTrajectoryPlanner
+        #     args: {desired_speed: 2.5}  #approximately 5mph
+        #     print: True
         mpc_controller:
-            type: mpc_acc.ACCTrajectoryPlanner
-            args: {desired_speed: 2.5}  #approximately 5mph
+            type: mpc_motion_planning.MPCTrajectoryPlanner
+            args: {}
             print: True
 log:
     # Specify the top-level folder to save the log files.  Default is 'logs'
