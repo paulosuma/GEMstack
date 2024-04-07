@@ -18,18 +18,20 @@ class MPC(object):
         self.timesteps = int(self.horizon / self.dt) # horizon represented in the number of time steps
         self.Q = Q
         self.R = R
-        self.look_ahead = 4.0
-        self.look_ahead_scale = 3.0
+        self.look_ahead = 2.0
+        self.look_ahead_scale = 1.0
 
         self.path_arg = None
         self.path = None 
         self.trajectory = None
 
         # Defining geometry and dynamic constraints on the vehicle
-        self.front_wheel_angle_scale = 3.0
+        # self.front_wheel_angle_scale = 3.0
         self.wheelbase = settings.get('vehicle.geometry.wheelbase')
         self.max_deceleration = settings.get('vehicle.limits.max_deceleration')
         self.max_acceleration = settings.get('vehicle.limits.max_acceleration')
+        self.min_wheel_angle = settings.get('vehicle.geometry.min_wheel_angle')
+        self.max_wheel_angle = settings.get('vehicle.geometry.max_wheel_angle')
         self.min_steering_angle = settings.get('vehicle.geometry.min_steering_angle')
         self.max_steering_angle = settings.get('vehicle.geometry.max_steering_angle')
 
@@ -63,17 +65,31 @@ class MPC(object):
     def get_cost_function(self, states, controls, ref_trajectory):
         # Implement the cost function using CasADi
         cost = 0
+        t = ref_trajectory.times[0]
+        i = 0
+        while t < ref_trajectory.times[0] + self.horizon:
 
-        for t in range(self.timesteps):
-            print(t)
             v_x = ref_trajectory.eval_derivative(t)[0]
             v_y = ref_trajectory.eval_derivative(t)[1]
             ref_v = np.sqrt(v_x ** 2 + v_y ** 2)
-            cost += self.Q[0] * (ref_trajectory.eval(t)[0] - states[0, t])**2 + \
-                self.Q[1] * (ref_trajectory.eval(t)[1] - states[1, t])**2
-            cost += self.Q[2] * (ref_trajectory.eval(t)[2] - states[2, t])**2 + \
-                self.Q[3] * (ref_v - states[3, t])**2
-            cost += self.R[0] * controls[0, t] ** 2 + self.R[1] * controls[1, t] ** 2
+
+            # penalizes x and y deviations
+            cost += self.Q[0] * (ref_trajectory.eval(t)[0] - states[0, i])**2 + \
+                self.Q[1] * (ref_trajectory.eval(t)[1] - states[1, i])**2
+            
+            # penalizes heading angle and velocity deviations
+            cost += self.Q[2] * (ref_trajectory.eval(t)[2] - states[2, i])**2 + \
+                self.Q[3] * (ref_v - states[3, i])**2
+            
+            # penalizes large control inputs
+            cost += self.R[0] * controls[0, i] ** 2 + self.R[1] * controls[1, i] ** 2
+
+            # penalizes large fluctuations in consecutive controls
+            if i >= 1: 
+                cost += self.R[2] * (controls[0, i] - controls[0, i - 1]) ** 2 + \
+                    self.R[3] * (controls[1, i] - controls[1, i - 1]) ** 2
+            t += self.dt
+            i += 1
         return cost
 
     def compute(self, state: VehicleState, component: Component = None):
@@ -103,12 +119,14 @@ class MPC(object):
 
         des_parameter = closest_parameter + self.look_ahead + self.look_ahead_scale * state.v
         print("Desired parameter: " + str(des_parameter),"distance to path",closest_dist)
+        print(self.path.parameter_to_time(des_parameter))
 
         # Slice a range of trajectory given the horizon value
         ref_trajectory = self.path.trim(des_parameter, min(des_parameter + self.timesteps, self.path.times[-1]))
         ref_trajectory = compute_headings(ref_trajectory)
         # print("CURRENT STATE: ", current_state)
         # print("REF TRAJECTORY: ", ref_trajectory)
+        # print("LEN OF REF: ", len(ref_trajectory.times))
 
         # Set up the optimization problem
         opti = ca.Opti()
@@ -123,16 +141,32 @@ class MPC(object):
             x_next = self.get_model_equations(x_vars[:, t], u_vars[:, t])
             opti.subject_to(x_vars[:, t + 1] == x_next)
 
+            # State constraints
+            # opti.subject_to(x_vars[:, 2] < self.max_wheel_angle)
+            # opti.subject_to(x_vars[:, 2] > self.min_wheel_angle)
+
             # Control input constraints
             opti.subject_to(opti.bounded(-self.max_deceleration, u_vars[0, t], self.max_acceleration))
-            opti.subject_to(opti.bounded(self.min_steering_angle, u_vars[1, t], self.max_steering_angle))
+            opti.subject_to(opti.bounded(self.min_wheel_angle, u_vars[1, t], self.max_wheel_angle))
             
         # Set the objective function
         obj = self.get_cost_function(x_vars, u_vars, ref_trajectory)
         opti.minimize(obj)
 
+        options = {'ipopt': {
+            'tol': 1e-8,
+            'max_iter': 5000,
+            # 'linear_solver': 'MA57',  # Assuming you have it available
+            # 'derivative_test': 'none',  # Turn off for performance
+            # 'nlp_scaling_method': 'none',
+            # 'constr_viol_tol': 1e-6
+            # 'warm_start_init_point': 'no',  # Use 'yes' for warm starts
+            # 'print_level': 1
+        }}
+
+
         # Set up the solver
-        opti.solver('ipopt')
+        opti.solver('ipopt', options)
 
         # Solve the optimization problem
         sol = opti.solve()
@@ -155,7 +189,7 @@ class MPCController(Component):
         self.vehicle_interface = vehicle_interface
 
     def rate(self):
-        return 1.0
+        return 5.0
 
     def state_inputs(self):
         return ['vehicle', 'trajectory']
@@ -166,10 +200,11 @@ class MPCController(Component):
     def update(self, vehicle: VehicleState, trajectory: Trajectory):
         start_time = time.perf_counter()
         self.MPC.set_path(trajectory)
-        acceleration, steering_wheel_angle = self.MPC.compute(vehicle)
+        acceleration, wheel_angle = self.MPC.compute(vehicle)
         print("acceleration: ", acceleration)
-        print("steering_wheel_angle", steering_wheel_angle)
-        self.vehicle_interface.send_command(self.vehicle_interface.simple_command(acceleration, -steering_wheel_angle, vehicle))
+        print("wheel_angle", wheel_angle)
+        steering_wheel_angle = np.clip(front2steer(wheel_angle), self.MPC.min_steering_angle, self.MPC.max_steering_angle)
+        self.vehicle_interface.send_command(self.vehicle_interface.simple_command(acceleration, steering_wheel_angle, vehicle))
 
         end_time = time.perf_counter()
         execution_time = end_time - start_time
