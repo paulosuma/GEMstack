@@ -34,6 +34,7 @@ class MPC(object):
         self.max_wheel_angle = settings.get('vehicle.geometry.max_wheel_angle')
         self.min_steering_angle = settings.get('vehicle.geometry.min_steering_angle')
         self.max_steering_angle = settings.get('vehicle.geometry.max_steering_angle')
+        self.max_speed = settings.get('vehicle.limits.max_speed')
 
         self.t_last = None
 
@@ -142,6 +143,7 @@ class MPC(object):
             opti.subject_to(x_vars[:, t + 1] == x_next)
 
             # State constraints
+            opti.subject_to(x_vars[3, t] < self.max_speed)
             # opti.subject_to(x_vars[:, 2] < self.max_wheel_angle)
             # opti.subject_to(x_vars[:, 2] > self.min_wheel_angle)
 

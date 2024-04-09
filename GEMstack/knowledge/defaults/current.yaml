@@ -1,19 +1,7 @@
 # ********* Main settings entry point for behavior stack ***********
 
 # Configure settings for the vehicle / vehicle model
-vehicle: 
-    name: GEM
-    version: e2
-    max_gear : 1
-    num_wiper_settings : 1
-    enable_through_joystick : true   #turn this to false to have GEMstack enable control
-    max_command_rate : 10.0          #for hardware, max rate of commands to send to vehicle over Pacmod
-    #using !include directives helps maintain reuse of common settings
-    geometry: !include ../vehicle/gem_e2_geometry.yaml
-    dynamics: !include ../vehicle/gem_e2_dynamics.yaml
-    limits: !include ../vehicle/gem_e2_slow_limits.yaml
-    control_defaults: !include ../vehicle/gem_e2_control_defaults.yaml
-    calibration: !include ../calibration/gem_e2.yaml
+vehicle:  !include ../vehicle/gem_e4.yaml
 
 #arguments for algorithm components here
 model_predictive_controller:
@@ -32,6 +20,22 @@ control:
         pid_p: 1.0
         pid_i: 0.1
         pid_d: 0.0
+planner:
+    search_planner:
+        rate: 1.0
+        dt: 0.5
+        velocity: 1.0
+        max_steering_angle: 1.0
+        N_sample_controls: 3
+        resolution: 0.5
+        angle_resolution: 0.4
+        target_threshold: 1.0
+        RS_threshold: 12.0
+        RS_resolution: 0.2
+        RS_prob: 0.1
+        gear_cost: 5.0
+        backward_cost_scale: 1.2
+
 
 #configure the simulator, if using
 simulator:

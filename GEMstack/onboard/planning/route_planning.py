@@ -35,8 +35,11 @@ class StaticRoutePlanner(Component):
         return ['route']
 
     def rate(self):
-        return 1.0
+        return 5.0
 
     def update(self):
         return self.route
     
+
+
+

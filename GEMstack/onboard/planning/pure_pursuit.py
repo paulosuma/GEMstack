@@ -8,6 +8,7 @@ from ...knowledge.vehicle.geometry import front2steer
 from ..interface.gem import GEMVehicleCommand
 from ..component import Component
 import numpy as np
+import time
 
 class PurePursuit(object):   
     """Implements a pure pursuit controller on a second-order Dubins vehicle."""
@@ -205,6 +206,7 @@ class PurePursuitTrajectoryTracker(Component):
         return []
 
     def update(self, vehicle : VehicleState, trajectory: Trajectory):
+        start_time = time.perf_counter()
         self.pure_pursuit.set_path(trajectory)
         accel,wheel_angle = self.pure_pursuit.compute(vehicle, self)
         #print("Desired wheel angle",wheel_angle)
@@ -212,5 +214,9 @@ class PurePursuitTrajectoryTracker(Component):
         #print("Desired steering angle",steering_angle)
         self.vehicle_interface.send_command(self.vehicle_interface.simple_command(accel,steering_angle, vehicle))
     
+        end_time = time.perf_counter()
+        execution_time = end_time - start_time
+        print(f"Execution time: {execution_time:.4f} seconds")
+
     def healthy(self):
         return self.pure_pursuit.path is not None
