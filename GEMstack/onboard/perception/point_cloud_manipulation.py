@@ -69,7 +69,7 @@ def transform_point_cloud(pcd, camera_P, image_w, image_h):
 
     # Transform LiDAR points to camera frame
     T_lidar_to_camera = np.linalg.inv(T_camera) @ T_lidar
-    pcd_camera_frame = transform_point_cloud(pcd, T_lidar_to_camera)
+    pcd_camera_frame = project_point_cloud(pcd, T_lidar_to_camera)
 
     # Project the 3D points in the camera frame onto the 2D image
     pcd_image_pixels, indices = project_point_cloud_camera_to_image(
@@ -78,6 +78,6 @@ def transform_point_cloud(pcd, camera_P, image_w, image_h):
 
     # Convert the visible points from camera frame to vehicle frame
     pcd_camera_frame = pcd_camera_frame[indices] 
-    pcd_vehicle_frame = transform_point_cloud(pcd_camera_frame, T_camera)
+    pcd_vehicle_frame = project_point_cloud(pcd_camera_frame, T_camera)
 
     return pcd_image_pixels, pcd_vehicle_frame
