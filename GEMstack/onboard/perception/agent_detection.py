@@ -3,68 +3,33 @@ from ...utils import settings
 from ...mathutils import collisions
 from ..interface.gem import GEMInterface
 from ..component import Component
-from .point_cloud_manipulation import transform_point_cloud
+from .object_detection import ObjectDetector
 
 from ultralytics import YOLO
-import numpy as np
 from typing import Dict
 import threading
 import copy
 
 
-class AgentDetector():
+class AgentDetector(ObjectDetector):
     """Detects and tracks other agents."""
+
     def __init__(self, vehicle : VehicleState, 
                  camera_info, camera_image, lidar_point_cloud):
-        self.vehicle = vehicle
-        
-        self.camera_info = camera_info
-        self.camera_image = camera_image
-        self.lidar_point_cloud = lidar_point_cloud
-        
-        self.detector = YOLO(settings.get('perception.agent_detection.model'))
+        detector = YOLO(settings.get('perception.agent_detection.model'))
+        super().__init__(vehicle, camera_info, camera_image, lidar_point_cloud, detector)
 
-    def box_to_agent(self, bbox_xywh, bbox_cls):
-        """Creates a 3D agent state from an (x,y,w,h) bounding box.
-        
-        Uses the image, the camera intrinsics, the lidar point cloud, 
-        and the calibrated camera / lidar poses to get a good estimate 
-        of the other agent's pose (in vehicle frame) and dimensions.
-        """
+    def object_to_agent(self, detected_object, bbox_cls):
+        """Creates a 3D agent state from a PhysicalObject."""
 
-        # Obtain point clouds in image frame and vehicle frame
-        pcd_image_pixels, pcd_vehicle_frame = transform_point_cloud(
-            self.lidar_point_cloud, np.array(self.camera_info.P).reshape(3,4), 
-            self.camera_info.width, self.camera_info.height
-        )
-
-        x, y, w, h = bbox_xywh
-        # print('Bbox: [{.2f}, {.2f}, {.2f}, {.2f}]'.format(x,y,w,h))
-
-        # tolerance for calibration-related errors
-        tolerance = settings.get('perception.agent_detection.tolerance_factor') 
-        indices = [i for i in range(len(pcd_image_pixels)) if 
-                    (x - tolerance * w/2) <= pcd_image_pixels[i][0] <= (x + tolerance * w/2) and 
-                    (y - tolerance * h/2) <= pcd_image_pixels[i][1] <= (y + tolerance * h/2)]
-        points = [pcd_vehicle_frame[idx] for idx in indices]   # in vehicle frame
-
-        # Estimate center and dimensions
-        center = np.mean(points, axis=0)
-        dimensions = np.max(points, axis=0) - np.min(points, axis=0)
-
-        # For a PhysicalObject, 
-        #   origin is at the object's center in the x-y plane and at the bottom in the z axis
-        pose = ObjectPose(t=0, x=center[0], y=center[1], z=center[2] - dimensions[2]/2, 
-                          yaw=0, pitch=0, roll=0, frame=ObjectFrameEnum.CURRENT)
-        
-        # set type based on class id
+        # set agent type based on class id
         type_dict = {
             '0': AgentEnum.PEDESTRIAN,
             '1': AgentEnum.BICYCLIST,
             '2': AgentEnum.CAR,
-            '7': AgentEnum.MEDIUM_TRUCK if dimensions[2] <= 2.0 else AgentEnum.LARGE_TRUCK
+            '7': AgentEnum.MEDIUM_TRUCK if detected_object.dimensions[2] <= 2.0 else AgentEnum.LARGE_TRUCK
         }
-        return AgentState(pose=pose, dimensions=dimensions, outline=None, 
+        return AgentState(pose=detected_object.pose, dimensions=detected_object.dimensions, outline=None, 
                           type=type_dict[str(bbox_cls)], activity=AgentActivityEnum.STOPPED, 
                           velocity=(0,0,0), yaw_rate=0)
 
@@ -75,35 +40,15 @@ class AgentDetector():
             2,  # car
             7   # truck
         ]
-        detection_result = self.detector(self.camera_image, classes=yolo_class_ids, verbose=False)
-        bbox_locations = detection_result[0].boxes.xywh.tolist()
-        bbox_classes = detection_result[0].boxes.cls.tolist()
+        detected_objects, bbox_classes = super().detect_objects(yolo_class_ids)
 
         detected_agents = []
-        for i in range(len(bbox_locations)):
-            agent = self.box_to_agent(bbox_locations[i], bbox_classes[i])
+        for i in range(len(detected_objects)):
+            agent = self.object_to_agent(detected_objects[i], bbox_classes[i])
             detected_agents.append(agent)
         
         return detected_agents
     
-    def deduplication(self, agent, prev_states):
-        """ For dedupliction:
-        - Check if agent was detected before using the previous states.
-        - If seen before, 
-            return the dict key corresponding to the previous agent matching the current one. 
-        """
-        
-        polygon = agent.polygon_parent()
-
-        for key in prev_states:
-            prev_agent = prev_states[key]
-            prev_polygon = prev_agent.polygon_parent()
-
-            if collisions.polygon_intersects_polygon_2d(polygon, prev_polygon):
-                return key
-        
-        return None
-
     def track_agents(self, detected_agents, prev_states, counter, rate):
         """ Given a list of detected agents, updates the state of the agents.
         - Keep track of which agents were detected before.
@@ -114,7 +59,7 @@ class AgentDetector():
         states = {}
 
         for agent in detected_agents:
-            prev_key = self.deduplication(agent, prev_states)
+            prev_key = super().deduplication(agent, prev_states)
 
             if prev_key is None: # new agent
                 # velocity of a new agent is 0 by default
