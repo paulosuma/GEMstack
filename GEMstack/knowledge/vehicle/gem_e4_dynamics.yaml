@@ -1,4 +1,12 @@
 mass: 300.0  #kg
+yaw_moment_of_inertia: 640 # kg/m^2
+lf: 1.28 # distance of wheel base to front
+lr: 1.28 # distance of wheel base to front
+
+rear_cornering_stiffness: 534 # N/deg 30653 N/rad
+front_cornering_stiffness: 1104 # N/deg 63254 N/rad
+
+
 gravity: 9.81 #m/s^2
 longitudinal_friction : 1.0  # unitless
 lateral_friction : 1.0       # unitless
@@ -12,7 +20,7 @@ max_accelerator_power:  #Watts.  Power at max accelerator pedal, by gear
   - 10000.0
 max_accelerator_power_reverse: 10000.0 #Watts.  Power (backwards) in reverse gear
 
-acceleration_model : hang_v1
+acceleration_model : kris_v1
 accelerator_active_range : [0.2, 1.0]   #range of accelerator pedal where output acceleration is not flat
 brake_active_range : [0,1]             #range of brake pedal where output deceleration is not flat
 
