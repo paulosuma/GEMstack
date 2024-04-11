@@ -26,7 +26,7 @@ class MPC(object):
         self.path_arg = None
         self.path = None 
         self.trajectory = None
-
+        self.front_wheel_angle = None
         # Defining geometry and dynamic constraints on the vehicle
         # self.front_wheel_angle_scale = 3.0
         self.yaw_moment_of_inertia = settings.get('vehicle.dynamics.yaw_moment_of_inertia')
@@ -100,25 +100,27 @@ class MPC(object):
 
         # Tire forces
         alpha_f = delta - ca.arctan((omega * lf + v_y) / (v_x + epsilon))
-        alpha_r = -ca.arctan((omega * lr - v_y) / (v_x + epsilon))
+        alpha_r = -ca.arctan((omega * lr - v_y) /  (v_x + epsilon))
         Fyf = Cf * alpha_f
         Fyr = Cr * alpha_r
 
         #motion
         x_next = x + (v_x * ca.cos(theta) - v_y * ca.sin(theta)) * self.dt  # Next x position
         y_next = y + (v_x * ca.sin(theta) + v_y * ca.cos(theta)) * self.dt  # Next y position
-        theta_next = theta + omega * self.dt  # Next orientation
+        
 
         # Update velocities
         dv_x = (throttle - F_aero - F_gravity + Fyf * ca.sin(delta)) / m + v_y * omega  # Change in longitudinal velocity
         dv_y = (Fyf * ca.cos(delta) + Fyr) / m - v_x * omega  # Change in lateral velocity
+        
         v_x_next = v_x + dv_x * self.dt  # Next longitudinal velocity
         v_y_next = v_y + dv_y * self.dt  # Next lateral velocity
 
         # Update yaw rate
-        domega = (lf * Fyf * ca.cos(delta) - lr * Fyr) / Iz  # Change in yaw rate
-        omega_next = omega + domega * self.dt  # Next yaw rate
-
+        domega = (lf * Fyf  - lr * Fyr) / Iz  # Change in yaw rate
+        theta_next = omega # Next orientation
+        #state.v / self.wheelbase * np.tan(state.front_wheel_angle)
+        omega_next = omega + domega *self.dt
     # Return the predicted next state
         return ca.vertcat(x_next, y_next, theta_next, v_x_next, v_y_next, omega_next)
         # kinematics
@@ -140,42 +142,45 @@ class MPC(object):
         print("reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeef",ref_trajectory)
         while t < ref_trajectory.times[0] + self.horizon:
 
-            v_x = ref_trajectory.eval_derivative(t)[0]
-            v_y = ref_trajectory.eval_derivative(t)[1]
-            ref_v = np.sqrt(v_x ** 2 + v_y ** 2)
-            # print("Time step:", t)
-            # print("States:", opti.debug.value(states[:, t]))
-            # print("Controls:", opti.debug.value(controls[:, t]))
+            x = states[0, i]
+            y = states[1, i]
+            theta = states[2, i]
+            v_x = states[3, i]
+            v_y = states[4, i]
+            omega = states[5, i]
+            
+            throttle = controls[0, i]
+            delta = controls[1, i]
 
-            # penalizes x and y deviations
-            cost += self.Q[0] * (ref_trajectory.eval(t)[0] - states[0, i])**2 + \
-                self.Q[1] * (ref_trajectory.eval(t)[1] - states[1, i])**2
-            
-            # penalizes heading angle and velocity deviations
-            # cost += self.Q[2] * (ref_trajectory.eval(t)[2] - states[2, i])**2 + \
-            #     self.Q[3] * (ref_v - states[3, i])**2
-            
-            # penalizes heading angle and velocity deviations (forward vel and lateral vel)
-            cost += self.Q[2] * (ref_trajectory.eval(t)[2] - states[2, i])**2 + \
-                self.Q[3] * (v_x - states[3, i])**2 + self.Q[4] * (v_y - states[4,i])**2 
-            
-            #TODO
-            # if t ==ref_trajectory.times[0] :
-            #     cost += self.Q[4] * ( (ref_trajectory.eval(t)[2] /self.dt) - states[5,i] ) **2
-            # else:
-            #     cost += self.Q[4] * ( ( ( ref_trajectory.eval(t)[2] - self.prev_ref_yaw ) /self.dt) - states[5,i])**2
-            
-            # penalizes large control inputs
-            cost += self.R[0] * controls[0, i] ** 2 + self.R[1] * controls[1, i] ** 2
+            # Get the reference states from the trajectory
+            ref_x = ref_trajectory.eval(t)[0]
+            ref_y = ref_trajectory.eval(t)[1]
+            ref_theta = ref_trajectory.eval(t)[2]
+            ref_v_x = ref_trajectory.eval_derivative(t)[0]
+            ref_v_y = ref_trajectory.eval_derivative(t)[1]
+            ref_omega = ref_trajectory.eval_derivative(t)[2]
 
-            # penalizes large fluctuations in consecutive controls
-            if i >= 1: 
-                cost += self.R[2] * (controls[0, i] - controls[0, i - 1]) ** 2 + \
-                    self.R[3] * (controls[1, i] - controls[1, i - 1]) ** 2
+            # Penalize deviations from the reference states
+            cost += self.Q[0] * (x - ref_x) ** 2
+            cost += self.Q[1] * (y - ref_y) ** 2
+            cost += self.Q[2] * (theta - ref_theta) ** 2
+
+            cost += self.Q[3] * (v_x - ref_v_x) ** 2
+            cost += self.Q[4] * (v_y - ref_v_y) ** 2
+
+            cost += self.Q[5] * (omega - ref_omega) ** 2
+
+            # Penalize control effort
+            cost += self.R[0] * throttle ** 2
+            cost += self.R[1] * delta ** 2
+
+            # Penalize large fluctuations in consecutive controls
+            if i >= 1:
+                cost += self.R[2] * (throttle - controls[0, i - 1]) ** 2
+                cost += self.R[3] * (delta - controls[1, i - 1]) ** 2
+
             t += self.dt
             i += 1
-            
-            self.prev_ref_yaw = ref_trajectory.eval(t)[2]
         return cost
 
     def compute(self, state: VehicleState, component: Component = None):
@@ -193,12 +198,16 @@ class MPC(object):
             # domega = state.pose.yaw  / self.dt
         # else:
         #     domega = (state.pose.yaw - self.prev_yaw_angle) / self.dt
+        if state.pose.yaw is not None and state.front_wheel_angle is not None:
+            initial_yaw_rate = state.v / self.wheelbase * np.tan(state.front_wheel_angle)
+        else:
+            initial_yaw_rate = 0.0
 
         domega = (state.v * ca.tan(state.front_wheel_angle))/ self.wheelbase
-
+        # self.front_wheel_angle = state.front_wheel_angle
         
         #current_state = [state.pose.x, state.pose.y, state.pose.yaw if state.pose.yaw is not None else 0.0, state.v]
-        current_state = [state.pose.x, state.pose.y, state.pose.yaw if state.pose.yaw is not None else 0.0, state.v,lateral_v,domega]
+        current_state = [state.pose.x, state.pose.y, state.pose.yaw if state.pose.yaw is not None else 0.0, state.v,lateral_v,state.heading_rate]
         
         if self.path is None:
             raise RuntimeError("Behavior without path not implemented")
