@@ -27,6 +27,8 @@ class MPC(object):
         self.path = None 
         self.trajectory = None
         self.front_wheel_angle = None
+        self.wheel_rad = settings.get('vehicle.dynamics.wheel_rad')
+        self.gear_ratio = settings.get('vehicle.dynamics.gear_ratio')
         # Defining geometry and dynamic constraints on the vehicle
         # self.front_wheel_angle_scale = 3.0
         self.yaw_moment_of_inertia = settings.get('vehicle.dynamics.yaw_moment_of_inertia')
@@ -37,7 +39,7 @@ class MPC(object):
         self.g = settings.get('vehicle.dynamics.gravity')
         self.front_cornering_stiffness = settings.get('vehicle.dynamics.front_cornering_stiffness')
         self.rear_cornering_stiffness = settings.get('vehicle.dynamics.rear_cornering_stiffness')
-
+        self.peak_torq = settings.get('vehicle.dynamics.peak_torque')
         self.wheelbase = settings.get('vehicle.geometry.wheelbase')
         self.max_deceleration = settings.get('vehicle.limits.max_deceleration')
         self.max_acceleration = settings.get('vehicle.limits.max_acceleration')
@@ -46,6 +48,7 @@ class MPC(object):
         self.min_steering_angle = settings.get('vehicle.geometry.min_steering_angle')
         self.max_steering_angle = settings.get('vehicle.geometry.max_steering_angle')
 
+        self.rolling_resist = settings.get('vehicle.dynamics.rolling_resistance_coefficient')
         self.t_last = None
 
 
@@ -79,8 +82,8 @@ class MPC(object):
         omega = states[5] # yaw rate of change
 
         epsilon = 1e-8
-        throttle = controls[0]
-        delta = controls[1]
+        throttle = controls[0] # accleration 
+        delta = controls[1] # steering wheel angle
         
         m = self.vehicle_mass
         Iz = self.yaw_moment_of_inertia
@@ -88,41 +91,54 @@ class MPC(object):
         lr = self.distance_rear_to_cg
         Cf = self.front_cornering_stiffness
         Cr = self.rear_cornering_stiffness
-
+        peak_torque = self.peak_torq
+        gear_ratio = self.gear_ratio
+        wheel_rad = self.wheel_rad
+        rolling_resist = self.rolling_resist
         # x, y, theta, v_x, v_y, omega = states  # Adding lateral velocity (v_y) and yaw rate (omega) to the states
         # throttle, delta = controls  # Throttle (or brake) and steering angle delta as controls
 
         # Aerodynamic and gravitational forces
         F_aero = self.aerodynamic_drag_coefficient * v_x**2
-        F_gravity = m * self.g * ca.cos(theta)
+        F_gravity = m * self.g 
         Fz_front = m * self.g * (lr / (lf + lr))
         Fz_rear = m * self.g * (lf / (lf + lr))
 
         # Tire forces
         alpha_f = delta - ca.arctan((omega * lf + v_y) / (v_x + epsilon))
-        alpha_r = -ca.arctan((omega * lr - v_y) /  (v_x + epsilon))
-        Fyf = Cf * alpha_f
-        Fyr = Cr * alpha_r
+        alpha_r = ca.arctan((omega * lr - v_y) /  (v_x + epsilon))
+        # Fyf = Cf * ( ca.sin( 1.3 * ca.arctan(12 * alpha_f))  )# force on front tire
+        # Fyr = Cr * ( ca.sin( 1.2 * ca.arctan(10 * alpha_r) ) )# force on rear ti
+        
+        Fyf = Cf * alpha_f  # force on front tire
+        Fyr = Cr * alpha_r  # force on rear ti
 
+        # Initial traction force
+        
+        traction_force = peak_torque * gear_ratio / wheel_rad
+        F_t = (traction_force - v_x /traction_force )* throttle - rolling_resist* m * self.g 
+        
         #motion
         x_next = x + (v_x * ca.cos(theta) - v_y * ca.sin(theta)) * self.dt  # Next x position
         y_next = y + (v_x * ca.sin(theta) + v_y * ca.cos(theta)) * self.dt  # Next y position
         
 
         # Update velocities
-        dv_x = (throttle - F_aero - F_gravity + Fyf * ca.sin(delta)) / m + v_y * omega  # Change in longitudinal velocity
-        dv_y = (Fyf * ca.cos(delta) + Fyr) / m - v_x * omega  # Change in lateral velocity
+        
+        dv_x = (F_t - F_aero - F_gravity  -Fyf * ca.sin(delta)) / m + v_y * omega  # Change in longitudinal velocity
+        dv_y = (Fyr - Fyf * ca.cos(delta) ) / m - v_x * omega  # Change in lateral velocity
         
         v_x_next = v_x + dv_x * self.dt  # Next longitudinal velocity
         v_y_next = v_y + dv_y * self.dt  # Next lateral velocity
-
+        
         # Update yaw rate
-        domega = (lf * Fyf  - lr * Fyr) / Iz  # Change in yaw rate
-        theta_next = omega # Next orientation
+        domega = (lf * Fyf * ca.cos(delta)  - lr * Fyr ) / Iz  # Change in yaw rate
+        theta_next = theta + omega * self.dt  # Next orientation
         #state.v / self.wheelbase * np.tan(state.front_wheel_angle)
         omega_next = omega + domega *self.dt
     # Return the predicted next state
         return ca.vertcat(x_next, y_next, theta_next, v_x_next, v_y_next, omega_next)
+    
         # kinematics
         # x_next = states[0] + states[3] * ca.cos(states[2]) * self.dt
         # y_next = states[1] + states[3] * ca.sin(states[2]) * self.dt
@@ -139,7 +155,7 @@ class MPC(object):
         cost = 0
         t = ref_trajectory.times[0]
         i = 0
-        print("reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeef",ref_trajectory)
+       # print("reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeef",ref_trajectory)
         while t < ref_trajectory.times[0] + self.horizon:
 
             x = states[0, i]
@@ -151,6 +167,7 @@ class MPC(object):
             
             throttle = controls[0, i]
             delta = controls[1, i]
+            
 
             # Get the reference states from the trajectory
             ref_x = ref_trajectory.eval(t)[0]
@@ -159,11 +176,19 @@ class MPC(object):
             ref_v_x = ref_trajectory.eval_derivative(t)[0]
             ref_v_y = ref_trajectory.eval_derivative(t)[1]
             ref_omega = ref_trajectory.eval_derivative(t)[2]
+            print('ref-omega',ref_omega)
+            print('omega',omega)
+            print('ref_theta',ref_theta)
+            print('theta',theta)
+            
 
             # Penalize deviations from the reference states
             cost += self.Q[0] * (x - ref_x) ** 2
             cost += self.Q[1] * (y - ref_y) ** 2
             cost += self.Q[2] * (theta - ref_theta) ** 2
+            
+            # v = ca.sqrt(v_x**2+v_y**2)
+            # v_ref = ca.sqrt(ref_v_y**2 + ref_v_x**2)
 
             cost += self.Q[3] * (v_x - ref_v_x) ** 2
             cost += self.Q[4] * (v_y - ref_v_y) ** 2
@@ -192,22 +217,26 @@ class MPC(object):
         dt = t - self.t_last
         # given foward velocity, calculate lateral velocity = forward velocity * tan(steer angle)
         #TODO given yaw, x, y position,and forward vel, calculate , yaw rate of change/ lateral vel
-        lateral_v = state.v * ca.tan(state.pose.yaw)
+        if state.pose.yaw is not None:
+
+            lateral_v = state.v * ca.tan(state.pose.yaw)
+        else:
+            lateral_v = 0.0
         # yaw rate of change
         # if self.prev_yaw_angle is None:
             # domega = state.pose.yaw  / self.dt
         # else:
         #     domega = (state.pose.yaw - self.prev_yaw_angle) / self.dt
-        if state.pose.yaw is not None and state.front_wheel_angle is not None:
-            initial_yaw_rate = state.v / self.wheelbase * np.tan(state.front_wheel_angle)
-        else:
-            initial_yaw_rate = 0.0
+        # if state.pose.yaw is not None and state.front_wheel_angle is not None:
+        #     initial_yaw_rate = state.v / self.wheelbase * np.tan(state.front_wheel_angle)
+        # else:
+        #     initial_yaw_rate = 0.0
 
         domega = (state.v * ca.tan(state.front_wheel_angle))/ self.wheelbase
         # self.front_wheel_angle = state.front_wheel_angle
-        
+        print("yaww",state.pose.yaw)
         #current_state = [state.pose.x, state.pose.y, state.pose.yaw if state.pose.yaw is not None else 0.0, state.v]
-        current_state = [state.pose.x, state.pose.y, state.pose.yaw if state.pose.yaw is not None else 0.0, state.v,lateral_v,state.heading_rate]
+        current_state = [state.pose.x, state.pose.y, state.pose.yaw if state.pose.yaw is not None else 0.0, state.v,lateral_v, state.heading_rate]
         
         if self.path is None:
             raise RuntimeError("Behavior without path not implemented")
@@ -258,6 +287,8 @@ class MPC(object):
             # opti.subject_to(x_vars[:, t] > self.min_wheel_angle)
             
             # Control input constraints
+            #opti.subject_to(opti.bounded(-1, x_vars[4, t], 1))
+
             opti.subject_to(opti.bounded(-self.max_deceleration, u_vars[0, t], self.max_acceleration))
             opti.subject_to(opti.bounded(self.min_wheel_angle, u_vars[1, t], self.max_wheel_angle))
             
@@ -285,12 +316,22 @@ class MPC(object):
         'constr_viol_tol': 1e-6,
         'acceptable_tol': 1e-5,  # Looser tolerance for accepting convergence
         'linear_solver': 'mumps',  # Robust linear solver
-        'print_level': 5,  # Provides detailed output about solver progress and issues
+        'print_level': 0,  # Provides detailed output about solver progress and issues
         'hessian_approximation': 'limited-memory',  # Good for large-scale problems
         'derivative_test': 'first-order',  # Check derivatives (gradient) correctness63254
     }
 }
+    #     options = {
+    #     'ipopt': {
+    #     'max_iter': 10000,
+    #     'tol': 1e-10,
+    #     'acceptable_tol': 1e-10,
+    #     'linear_solver': 'mumps',
+    #     'hessian_approximation': 'limited-memory'
+    # }
 
+# }
+        
         # Set up the solver
         opti.solver('ipopt', options)
         
@@ -329,6 +370,9 @@ class MPCController(Component):
         start_time = time.perf_counter()
         self.MPC.set_path(trajectory)
         acceleration, wheel_angle = self.MPC.compute(vehicle)
+        print("curr_acc_pedal",vehicle.accelerator_pedal_position)
+        print("curr_brk_pedal",vehicle.brake_pedal_position)
+
         print("curr_vel",vehicle.v)
         print("acceleration: ", acceleration)
         print("wheel_angle", wheel_angle)
