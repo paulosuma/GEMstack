@@ -1,5 +1,5 @@
 mass: 300.0  #kg
-yaw_moment_of_inertia: 340 # kg/m^2
+yaw_moment_of_inertia: 640 # kg/m^2
 lf: 1.28 # distance of wheel base to front
 lr: 1.28 # distance of wheel base to front
 
