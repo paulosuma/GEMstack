@@ -4,7 +4,10 @@ from ...utils import serialization, settings
 from ...state import AllState,VehicleState,Route,ObjectFrameEnum,Roadmap,Roadgraph
 from ...mathutils import collisions
 from ...mathutils.transforms import normalize_vector
-from .reeds_shepp import path_length, get_optimal_path, eval_path, rad2deg
+
+from .reeds_shepp import path_length, get_optimal_path, eval_path, rad2deg, precompute
+from .obstacle_heuristic import obstacle_heuristic
+
 import os
 import copy
 from time import time
@@ -12,6 +15,7 @@ from dataclasses import replace
 from queue import PriorityQueue
 import numpy as np
 import math
+
 
 
 class StaticRoutePlanner(Component):
@@ -85,11 +89,15 @@ class SearchNavigationRoutePlanner(Component):
     def __init__(self, start : List[float], end : List[float]):
         # start and end are [x, y, yaw, speed, steer] in the START frame
         self.start = start
-        self.start = [0.,0.,0.,0.,0.]
+
+
         self.end = end
         x_bound = [min(self.start[0], self.end[0])-2, max(self.start[0], self.end[0])+1]
         y_bound = [min(self.start[1], self.end[1])-2, max(self.start[1], self.end[1])+3]
         theta_bound = [0, 2*np.pi]
+        self.x_bound = x_bound
+        self.y_bound = y_bound
+
 
         resolution = settings.get('planner.search_planner.resolution')
         angle_resolution = settings.get('planner.search_planner.angle_resolution')
@@ -106,7 +114,13 @@ class SearchNavigationRoutePlanner(Component):
                                       round((state[1]-y_bound[0])/(y_bound[1]-y_bound[0])*self.s_bound[1]), \
                                       round((state[2]-theta_bound[0])/(theta_bound[1]-theta_bound[0])*self.s_bound[2])%self.s_bound[2], \
                                       state[3]]
+
+        self.grid_resolution = 0.5      
+        self.grid_map = np.full((int((x_bound[1]-x_bound[0])/self.grid_resolution), \
+                                 int((y_bound[1]-y_bound[0])/self.grid_resolution)), \
+                                 np.inf)
         
+
         self._rate = settings.get('planner.search_planner.rate')
         
         v = settings.get('planner.search_planner.velocity')
@@ -154,7 +168,11 @@ class SearchNavigationRoutePlanner(Component):
             start = [xs/turn_radius,ys/turn_radius,ths]
             xe,ye,the = state2[:3]
             end = [xe/turn_radius,ye/turn_radius,the]
-            h = path_length(get_optimal_path(start,end))*turn_radius
+            h = precompute(start,end)*turn_radius
+            # h = path_length(get_optimal_path(start,end))*turn_radius
+            i, j = round((state1[0]-self.x_bound[0])/self.grid_resolution), round((state1[1]-self.y_bound[0])/self.grid_resolution)
+            h = max(self.grid_map[i,j]*self.grid_resolution,h)
+
             return h*2
         self.heuristic = heuristic
 
@@ -175,9 +193,6 @@ class SearchNavigationRoutePlanner(Component):
         self.last_path = None
         self.LATERAL_DISTANCE_BUFFER = .5
         self.LONGITUDINAL_DISTANCE_BUFFER = .5
-
-        # for replan debug
-        self.debug_counter = 0
 
 
         print("NavigationRoutePlanner: start",start)
@@ -226,41 +241,27 @@ class SearchNavigationRoutePlanner(Component):
             return True
         
         def check_path(path):
-            for p in path:
+
+            for p in path[::5]:
                 if not check_constraints(p):
                     return False
             return True
-
-        # if perception algorithm change
-        ## TO DO: update state.end in perception algorithm
-        replan = False
-        print("TEST END: ", state.end)
-        self.debug_counter+=1
-        if self.end != state.end and self.debug_counter > 3:
-            replan = True
-
-            current_x, current_y, current_yaw = vehicle.pose.x, vehicle.pose.y, vehicle.pose.yaw
-
-            # Transpose the end position to the original start frame
-            dx = state.end[0] - current_x
-            dy = state.end[1] - current_y
-
-            dx_rot = dx * math.cos(current_yaw) - dy * math.sin(current_yaw)
-            dy_rot = dx * math.sin(current_yaw) + dy * math.cos(current_yaw)
-
-            new_x = current_x + dx_rot
-            new_y = current_y + dy_rot
-            new_yaw = state.end[2] + (current_yaw - self.start[2])
-
-            state.end[0] = new_x
-            state.end[1] = new_y
-            state.end[2] = new_yaw
-
-            self.end = state.end
-            print("END AFTER TRANSPOASE: ", state.end)
         
-        if replan or self.last_path is None or not check_path(self.last_path): # replan when last route is not valid
-            start = [*self.start[:3], 0]
+        replan = self.last_path is None or not check_path(self.last_path)
+        # replan = True
+        if replan: # replan when last route is not valid
+            # Compute grid map
+            for i in range(self.grid_map.shape[0]):
+                for j in range(self.grid_map.shape[1]):
+                    x, y = self.grid_resolution*i+self.x_bound[0], self.grid_resolution*j+self.y_bound[0]
+                    if not check_constraints([x,y,0,0]):
+                        self.grid_map[i,j] = -1
+            i = round((self.end[0]-self.x_bound[0])/self.grid_resolution)
+            j = round((self.end[1]-self.y_bound[0])/self.grid_resolution)
+            obstacle_heuristic(self.grid_map, [i,j])
+
+            start = [vehicle.pose.x, vehicle.pose.y, vehicle.pose.yaw, 0]
+
             end = [*self.end[:3], 0]
             root = Node(start,0,heuristic=self.heuristic(start,end))
 
@@ -301,15 +302,23 @@ class SearchNavigationRoutePlanner(Component):
                         queue.put(child)
             
             route = []
+
+            yaws = []
+            gear = []
             last_path = []
             while current is not None:
                 route.append(current.state[:2])
+                yaws.append(current.state[2])
+                gear.append(current.state[3])
                 last_path.append(current.state)
                 current = current.parent
             route = route[::-1]
+            yaws = yaws[::-1]
+            gear = gear[::-1]
             last_path = last_path[::-1]
-            self.route = Route(frame=ObjectFrameEnum.START,points=route)
+            self.route = Route(frame=ObjectFrameEnum.START,points=route,yaws=yaws,gear=gear)
             self.last_path = last_path
         
         route = self.route
+        
         return route
