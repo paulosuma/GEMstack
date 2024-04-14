@@ -194,7 +194,7 @@ class SearchNavigationRoutePlanner(Component):
         self.LONGITUDINAL_DISTANCE_BUFFER = .5
 
         self.debug_counter = 0
-
+        
 
         print("NavigationRoutePlanner: start",start)
         print("NavigationRoutePlanner: end",end)
@@ -250,10 +250,11 @@ class SearchNavigationRoutePlanner(Component):
 
         # if perception algorithm change
         ## TO DO: update state.end in perception algorithm
+        start_time = time()
         replaning = False
-        print("TEST END: ", state.end)
+        print(f"TEST END: state{state.end}, self{self.end}")
         self.debug_counter+=1
-        if self.end != state.end and self.debug_counter > 2:
+        if self.end != state.end and self.debug_counter > 3:
             replaning = True
 
             current_x, current_y, current_yaw = vehicle.pose.x, vehicle.pose.y, vehicle.pose.yaw
@@ -274,9 +275,9 @@ class SearchNavigationRoutePlanner(Component):
             state.end[2] = new_yaw
 
             self.end = state.end
-            print("END AFTER TRANSPOASE: ", state.end)
+            print(f"END AFTER TRANSFORM: state{state.end}, self{self.end}")
 
-        replan = replanning or self.last_path is None or not check_path(self.last_path)
+        replan = replaning or self.last_path is None or not check_path(self.last_path)
         # replan = True
         if replan: # replan when last route is not valid
             # Compute grid map
@@ -348,4 +349,9 @@ class SearchNavigationRoutePlanner(Component):
             self.last_path = last_path
         
         route = self.route
+
+        end_time = time()
+        elapsed_time = end_time - start_time
+        print("Elapsed time:", elapsed_time, "seconds")
+        
         return route
