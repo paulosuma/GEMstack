@@ -134,9 +134,9 @@ class MPC(object):
         
         ref_trajectory = self.path
         ref_trajectory = compute_headings(ref_trajectory)
-        print("REF TRAJECTORY: ", ref_trajectory)
-        print("ref trajectory points: ", len(ref_trajectory.points))
-        print("ref trajectory times: ", len(ref_trajectory.times))
+        # print("REF TRAJECTORY: ", ref_trajectory)
+        # print("ref trajectory points: ", len(ref_trajectory.points))
+        # print("ref trajectory times: ", len(ref_trajectory.times))
 
         # Set up the optimization problem
         opti = ca.Opti()
