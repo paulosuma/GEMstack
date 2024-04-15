@@ -26,7 +26,7 @@ drive:
             # args: {desired_speed: 1.0}
 
             type: MPC.MPCController
-            args: {dt: 2.0, horizon: 10.0, Q: [1, 1, 1, 1], R: [2, 1, 1, 1]} 
+            args: {dt: 2.0, horizon: 10.0, Q: [1, 1, 1, 1], R: [150, 1, 1, 1]} 
             # time discretization, time horizon, state cost matrix, and control cost matrix  
             print: True
 log:
