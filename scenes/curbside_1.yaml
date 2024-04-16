@@ -8,15 +8,12 @@ agents:
     type: car
     position: [20.0, 2.0]
     behavior: stationary
-    waving: True
   car3: 
     type: car
     position: [8.0, 2.0]
     behavior: stationary
-    waving: True
   car4: 
     type: car
     position: [35.0, 2.0]
     behavior: stationary
-    waving: True
     
