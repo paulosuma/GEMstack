@@ -16,4 +16,3 @@ agents:
     type: car
     position: [35.0, 2.0]
     behavior: stationary
-    
