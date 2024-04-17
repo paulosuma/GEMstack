@@ -406,9 +406,4 @@ class SearchNavigationRoutePlanner(Component):
             self.last_path = last_path
         
         route = self.route
-
-        end_time = time()
-        elapsed_time = end_time - start_time
-        print("Elapsed time:", elapsed_time, "seconds")
-
         return route
