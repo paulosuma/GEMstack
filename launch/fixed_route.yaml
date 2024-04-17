@@ -25,8 +25,11 @@ drive:
             # args: {desired_speed: 1.0}
 
             type: MPC.MPCController
-            args: {dt: 2.0, horizon: 10.0, Q: [1, 1, 1, 1], R: [250, 1, 1, 1]} 
-            # time discretization, time horizon, state cost matrix, and control cost matrix, and whether we are given a fixed route
+            args: {dt: 2.0, horizon: 10.0, Q: [1, 1, 1, 1], R: [250, 1, 1, 1], 
+                fixed: True, evaluation: True} 
+            # time discretization, time horizon, state cost matrix, and control cost matrix, 
+            # whether we are given a fixed route, and whether we want to evaluate the controller's
+            # performance
             print: True
 log:
     # Specify the top-level folder to save the log files.  Default is 'logs'

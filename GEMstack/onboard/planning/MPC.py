@@ -6,27 +6,28 @@ from ...state.vehicle import VehicleState, ObjectFrameEnum
 from ...state.trajectory import Path, Trajectory, compute_headings
 from ..component import Component
 from ...knowledge.vehicle.geometry import front2steer
-from scipy.interpolate import interp1d
-from ...utils import settings
-from ...mathutils import transforms        
+from ...utils import settings      
 
 class MPC(object):
-    def __init__(self, dt, horizon, Q, R):
+    """Implements a MPC controller on a second-order Dubins vehicle."""
+    def __init__(self, dt, horizon, Q, R, fixed, evaluation):
         # Defining the tunable parameters
         self.dt = dt
         self.horizon = horizon # horizon represented in seconds
         self.timesteps = int(self.horizon / self.dt) # horizon represented in the number of time steps
         self.Q = Q
         self.R = R
+        self.fixed = fixed
+        self.evaluation = evaluation
         self.look_ahead = 2.0
         self.look_ahead_scale = 1.0
 
         self.path_arg = None
         self.path = None 
+        self.path_with_angles = None
         self.trajectory = None
 
         # Defining geometry and dynamic constraints on the vehicle
-        # self.front_wheel_angle_scale = 3.0
         self.wheelbase = settings.get('vehicle.geometry.wheelbase')
         self.max_deceleration = settings.get('vehicle.limits.max_deceleration')
         self.max_acceleration = settings.get('vehicle.limits.max_acceleration')
@@ -37,6 +38,10 @@ class MPC(object):
         self.max_speed = settings.get('vehicle.limits.max_speed')
 
         self.t_last = None
+
+        # reference and actual path for the evaluation
+        self.ref_path_evaluation = []
+        self.actual_path_evaluation = []
 
 
     def set_path(self, path: Path):
@@ -54,6 +59,9 @@ class MPC(object):
             self.trajectory = path
             self.current_traj_parameter = self.trajectory.domain()[0]
         self.current_path_parameter = 0.0
+
+    def set_path_with_angles(self):
+        self.path_with_angles = compute_headings(self.path)
 
     def get_model_equations(self, states, controls):
         # Implement the kinematic bicycle model equations using CasADi
@@ -98,7 +106,6 @@ class MPC(object):
                     self.R[3] * (controls[1, i] - controls[1, i - 1]) ** 2
             t += self.dt
             i += 1
-            # index_from_time += 1
         return cost
 
     def compute(self, state: VehicleState, component: Component = None):
@@ -128,15 +135,20 @@ class MPC(object):
 
         des_parameter = closest_parameter + self.look_ahead + self.look_ahead_scale * state.v
         print("Desired parameter: " + str(des_parameter),"distance to path",closest_dist)
-        # print(self.path.parameter_to_time(des_parameter))
-
-        # Slice a range of trajectory given the horizon value
         
         ref_trajectory = self.path
-        ref_trajectory = compute_headings(ref_trajectory)
-        print("REF TRAJECTORY: ", ref_trajectory)
-        print("ref trajectory points: ", len(ref_trajectory.points))
-        print("ref trajectory times: ", len(ref_trajectory.times))
+        if self.fixed:
+            ref_trajectory = self.path_with_angles
+        else:
+            ref_trajectory = compute_headings(ref_trajectory)
+
+        if self.evaluation:
+            ref_state = [ref_trajectory.eval(t)[0], ref_trajectory.eval(t)[1], ref_trajectory.eval(t)[2]]
+            self.ref_path_evaluation.append(ref_state)
+            self.actual_path_evaluation.append(current_state[:3])
+        
+        print("REF PATH: ", self.ref_path_evaluation)
+        print("ACTUAL PATH: ", self.actual_path_evaluation)
 
         # Set up the optimization problem
         opti = ca.Opti()
@@ -153,8 +165,6 @@ class MPC(object):
 
             # State constraints
             opti.subject_to(x_vars[3, t] < self.max_speed)
-            # opti.subject_to(x_vars[:, 2] < self.max_wheel_angle)
-            # opti.subject_to(x_vars[:, 2] > self.min_wheel_angle)
 
             # Control input constraints
             opti.subject_to(opti.bounded(-self.max_deceleration, u_vars[0, t], self.max_acceleration))
@@ -169,9 +179,7 @@ class MPC(object):
             'max_iter': 5000,
         }}
 
-
         # Set up the solver
-        # opti.solver('ipopt')
         opti.solver('ipopt', options)
 
         # Solve the optimization problem
@@ -189,13 +197,15 @@ class MPC(object):
 
         return optimal_acceleration, steering_wheel_angle
 
+
 class MPCController(Component):
     def __init__(self, vehicle_interface=None, **args):
         self.MPC = MPC(**args)
+        self.set_once = 1
         self.vehicle_interface = vehicle_interface
 
     def rate(self):
-        return 5.0
+        return 10.0
 
     def state_inputs(self):
         return ['vehicle', 'trajectory']
@@ -206,6 +216,12 @@ class MPCController(Component):
     def update(self, vehicle: VehicleState, trajectory: Trajectory):
         start_time = time.perf_counter()
         self.MPC.set_path(trajectory)
+
+        # Making sure we only calculate the headings once when dealing with
+        # a fixed route to save computation time
+        if self.set_once:
+            self.MPC.set_path_with_angles()
+            self.set_once = 0
         acceleration, wheel_angle = self.MPC.compute(vehicle)
         print("acceleration: ", acceleration)
         print("wheel_angle", wheel_angle)
@@ -218,3 +234,4 @@ class MPCController(Component):
 
     def healthy(self):
         return self.MPC.path is not None
+
