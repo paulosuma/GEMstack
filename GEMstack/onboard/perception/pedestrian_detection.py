@@ -5,7 +5,6 @@ from ..interface.gem import GEMInterface
 from ..component import Component
 from ultralytics import YOLO
 import cv2
-from generic_kalman_filtering_class import KalmanTracker
 try:
     from sensor_msgs.msg import CameraInfo
     from image_geometry import PinholeCameraModel
@@ -83,7 +82,7 @@ def filter_lidar_by_range(point_cloud, xrange: Tuple[float, float], yrange: Tupl
 
 class PedestrianDetector(Component):
     """Detects and tracks pedestrians."""
-    def __init__(self,vehicle_interface : GEMInterface, extrinsic=None, tracker_config="temp_config.py"):
+    def __init__(self,vehicle_interface : GEMInterface, extrinsic=None, tracker_config="GEMstack/onboard/perception/temp_config.py"):
         self.vehicle_interface = vehicle_interface
         # self.detector = YOLO(settings.get('pedestrian_detection.model'))
         self.detector = YOLO('GEMstack/knowledge/detection/yolov8n.pt')
@@ -111,7 +110,7 @@ class PedestrianDetector(Component):
         self.pedestrian_counter = 0
         self.last_agent_states = {}
         self.previous_agents = {} 
-        self.kalman_tracker = KalmanTracker()
+        self.kalman_tracker = KalmanTracker(config_file_path=tracker_config)
 
         # init transformation parameters
         if extrinsic is None:
@@ -380,7 +379,7 @@ class PedestrianDetector(Component):
                 w,h,l = agent.dimensions
                 detections.append(np.array([x,y,w,l]))
         
-        kalman_agent_states, matches = self.tracker.update_pedestrian_tracking(detections)
+        kalman_agent_states, matches = self.kalman_tracker.update_pedestrian_tracking(detections)
         results = {}
         for pid in kalman_agent_states:
             ag_state = kalman_agent_states[pid]
@@ -388,12 +387,12 @@ class PedestrianDetector(Component):
                                       dimensions=(ag_state[2], ag_state[3],1.5),
                                       velocity=(ag_state[4], ag_state[5], 0),
                                       type=AgentEnum.PEDESTRIAN,
-                                      activity=AgentActivityEnum.MOVING, yaw_rate=0)
+                                      activity=AgentActivityEnum.MOVING, yaw_rate=0, outline=None)
         
         if test:
-            return kalman_agent_states, matches
+            return results, matches
         
-        return kalman_agent_states
+        return results
         # for i,a in enumerate(detected_agents):
         #     results['pedestrian_'+str(self.pedestrian_counter)] = a
         #     self.pedestrian_counter += 1

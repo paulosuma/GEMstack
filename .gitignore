@@ -1,6 +1,7 @@
 *logs/hw3*
 *rosbag/
 *save/
+*data/pedestrian_data/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

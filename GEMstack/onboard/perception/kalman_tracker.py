@@ -118,7 +118,7 @@ class KalmanTracker:
         for col_idx in (set(range(len(bounding_boxes))) - matched_bboxes):
             pedestrian_id = self.generate_new_pedestrian_id()
             self.kalman_filters[pedestrian_id] = self.create_kalman_filter(bounding_boxes[col_idx])
-        
+            matches[pedestrian_id]= col_idx
         # Return the tracked pedestrians (mapping pedestrian ID to state)
         tracked_pedestrians = {
             pedestrian_id: kalman_filter.x for pedestrian_id, kalman_filter in self.kalman_filters.items()

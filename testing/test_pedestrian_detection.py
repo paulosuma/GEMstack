@@ -352,7 +352,7 @@ class TestHelper:
         #     plot_object('agent', agent)
         # klampt_vis(self.zed_image, point_cloud_lidar, self.depth)
         
-    def test_track_agents(self, framenum=30):
+    def test_track_agents(self, framenum=80):
         for i in range(1, framenum):
             lidar_fn = os.path.join(args.src_dir, f'lidar{i}.npz')
             image_fn = os.path.join(args.src_dir, f'color{i}.png')
@@ -361,15 +361,18 @@ class TestHelper:
             point_cloud = np.load(lidar_fn)['arr_0']
             image = cv2.imread(image_fn)
             depth = cv2.imread(depth_fn)
+            self.depth = depth
+
             
             self.ped_detector.test_set_data(image, point_cloud)
 
-            detected_agents, detection_result = self.ped_detector.detect_agents()
+            detected_agents, detection_result = self.ped_detector.detect_agents(test=True)
             
             detected_pedestrians = [x for x in detected_agents if x.type==AgentEnum.PEDESTRIAN]
             
-            current_agent_states, matches = self.track_agents(None,detected_agents)
+            current_agent_states, matches = self.ped_detector.track_agents(None,detected_agents, test=True)
             rev_matches = {v:k for k,v in matches.items()}
+
             
             bbox_image = image.copy()
             
@@ -381,6 +384,7 @@ class TestHelper:
                 if class_id == 0: # class 0 stands for pedestrian
                     bbox = box.xywh[0].tolist()
                     pedestrian_boxes.append(bbox)
+
                     pid = rev_matches[detected_ped_id]
                     ag_state = current_agent_states[pid]
         
@@ -388,20 +392,26 @@ class TestHelper:
                     x,y,w,h = bbox
                     xmin, xmax = x - w/2, x + w/2
                     ymin, ymax = y - h/2, y + h/2
+                    
+                    # What our program measured before kalman
+                    m = detected_pedestrians[detected_ped_id]
+                    
                     bbox_image = cv2.rectangle(bbox_image, (int(xmin), int(ymin)), (int(xmax), int(ymax)), (0, 0, 255), 2) 
                     bbox_image = cv2.putText(
                         img = bbox_image,
-                        text = f"PID:{pid}, XY:{ag_state.pose.x},{ag_state.pose.y}, VELXY:{ag_state.velocity[0]},{ag_state.velocity[1]}",
-                        org = (x, y+10),
-                        fontFace = cv2.FONT_HERSHEY_DUPLEX,
-                        fontScale = 3.0,
-                        color = (125, 246, 55),
-                        thickness = 3
+                        # text = f"PID:{pid}, XY:{round(ag_state.pose.x, 2)},{round(ag_state.pose.y, 2)}, VELXY:{round(ag_state.velocity[0], 2)},{round(ag_state.velocity[1], 2)}",
+                        text = f"PID:{pid}, XY:{round(ag_state.pose.x, 2)},{round(ag_state.pose.y, 2)}, mXY:{round(m.pose.x, 2)},{round(m.pose.y, 2)}",
+
+                        org = (int(xmin) - 300, int(ymax)-10),
+                        fontFace = cv2.FONT_HERSHEY_SIMPLEX,
+                        fontScale = 0.5,
+                        color = (0, 0, 255),
+                        thickness = 2
                     )
                     detected_ped_id += 1
             
             pathlib.Path(OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
-            output_path = os.path.join(OUTPUT_DIR, f'bbox_image{framenum}.png')
+            output_path = os.path.join(OUTPUT_DIR, f'bbox_image{i}.png')
             print ('Output image with bbox result:', output_path)
             cv2.imwrite(output_path, bbox_image)
           
@@ -416,21 +426,25 @@ if __name__=='__main__':
     gem_interface = GEMInterface()
     ped_detector = PedestrianDetector(gem_interface, extrinsic)
     
+    
+    test_helper = TestHelper(ped_detector, None, None, None)
+    
+    test_helper.test_track_agents()
     # load data
-    all_data = []
-    for i in range(1, 30):
-        lidar_fn = os.path.join(args.src_dir, f'lidar{i}.npz')
-        image_fn = os.path.join(args.src_dir, f'color{i}.png')
-        depth_fn = os.path.join(args.src_dir, f'depth{i}.tif')
+    # all_data = []
+    # for i in range(1, 30):
+    #     lidar_fn = os.path.join(args.src_dir, f'lidar{i}.npz')
+    #     image_fn = os.path.join(args.src_dir, f'color{i}.png')
+    #     depth_fn = os.path.join(args.src_dir, f'depth{i}.tif')
     
-        point_cloud = np.load(lidar_fn)['arr_0']
-        image = cv2.imread(image_fn)
-        depth = cv2.imread(depth_fn)
+    #     point_cloud = np.load(lidar_fn)['arr_0']
+    #     image = cv2.imread(image_fn)
+    #     depth = cv2.imread(depth_fn)
 
     
-        test_helper = TestHelper(ped_detector, point_cloud, image, depth)
+    #     test_helper = TestHelper(ped_detector, point_cloud, image, depth)
 
-        test_helper.test_box_to_agent(i)
+    #     test_helper.test_box_to_agent(i)
     
     # if args.test_target == 'fuse':
     #     test_helper.test_fuse_lidar_image()

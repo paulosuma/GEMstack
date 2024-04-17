@@ -63,10 +63,10 @@ Q = np.eye(dim_x) * 0.01
 
 R = np.eye(dim_z) * 1
 
-max_age = 6
+max_age = 4
 
 # IoU must be at least 0.3 or higher to be considered a match
-threshold = -0.3
+threshold = -0.6
 
 # This cost function is IoU (intersection over Union) of 2D bounding boxes
 # Higher the IoU (overlapping region), higher is the similarity
