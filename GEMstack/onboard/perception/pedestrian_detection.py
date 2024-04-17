@@ -127,8 +127,9 @@ class PedestrianDetector(Component):
         # intrinsic = [527.5779418945312, 0.0, 616.2459716796875, 0.0, 527.5779418945312, 359.2155456542969, 0.0, 0.0, 1.0] #e2
         intrinsic = np.array(intrinsic).reshape((3, 3))
         self.intrinsic = np.concatenate([intrinsic, np.zeros((3, 1))], axis=1)
-
-        T_lidar2_Gem = np.loadtxt("GEMstack/knowledge/calibration/lidar2vehicle.txt")
+        
+        T_lidar2_Gem = np.loadtxt("GEMstack/knowledge/calibration/gem_e4_lidar2vehicle.txt")
+        # T_lidar2_Gem = np.loadtxt("GEMstack/knowledge/calibration/lidar2vehicle.txt")
         self.T_lidar2_Gem = np.asarray(T_lidar2_Gem)
 
         # obtained by GEMstack/offboard/calibration/check_target_lidar_range.py
@@ -151,22 +152,23 @@ class PedestrianDetector(Component):
         self.camera_info = camera_info
 
     def initialize(self):
-        #tell the vehicle to use image_callback whenever 'front_camera' gets a reading, and it expects images of type cv2.Mat
-        self.vehicle_interface.subscribe_sensor('front_camera',self.image_callback,cv2.Mat)
-        #tell the vehicle to use lidar_callback whenever 'top_lidar' gets a reading, and it expects numpy arrays
-        self.vehicle_interface.subscribe_sensor('top_lidar',self.lidar_callback,np.ndarray)
-        #subscribe to the Zed CameraInfo topic
-        self.camera_info_sub = rospy.Subscriber("/oak/rgb/camera_info", CameraInfo, self.camera_info_callback)
+        return
+        # #tell the vehicle to use image_callback whenever 'front_camera' gets a reading, and it expects images of type cv2.Mat
+        # self.vehicle_interface.subscribe_sensor('front_camera',self.image_callback,cv2.Mat)
+        # #tell the vehicle to use lidar_callback whenever 'top_lidar' gets a reading, and it expects numpy arrays
+        # self.vehicle_interface.subscribe_sensor('top_lidar',self.lidar_callback,np.ndarray)
+        # #subscribe to the Zed CameraInfo topic
+        # self.camera_info_sub = rospy.Subscriber("/oak/rgb/camera_info", CameraInfo, self.camera_info_callback)
 
 
-    def image_callback(self, image : cv2.Mat):
-        self.zed_image = image
+    # def image_callback(self, image : cv2.Mat):
+    #     self.zed_image = image
 
-    def camera_info_callback(self, info : CameraInfo):
-        self.camera_info = info
+    # def camera_info_callback(self, info : CameraInfo):
+    #     self.camera_info = info
 
-    def lidar_callback(self, point_cloud: np.ndarray):
-        self.point_cloud = point_cloud
+    # def lidar_callback(self, point_cloud: np.ndarray):
+    #     self.point_cloud = point_cloud
     
     def update(self, vehicle : VehicleState) -> Dict[str,AgentState]:
         if self.zed_image is None:
@@ -324,6 +326,7 @@ class PedestrianDetector(Component):
         distance = ((pose1.x - pose2.x) ** 2 + (pose1.y - pose2.y) ** 2 + (pose1.z - pose2.z) ** 2) ** 0.5
         return distance < distance_threshold
 
+    # TODO: Update this to be our Kalman Filter
     def track_agents(self, vehicle : VehicleState, detected_agents : List[AgentState]):
         """Given a list of detected agents, updates the state of the agents."""
         # TODO: keep track of which pedestrians were detected before u 

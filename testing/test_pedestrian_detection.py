@@ -268,7 +268,7 @@ class TestHelper:
         print ('Output lidar_to_image result:', output_path)
         cv2.imwrite(output_path, vis)
         
-    def test_lidar_to_image(self):
+    def test_lidar_to_image(self, framenum=1):
         print ('\nTest function lidar_to_image()...')
         filtered_point_cloud = filter_lidar_by_range(self.point_cloud, 
                                                      self.ped_detector.xrange,
@@ -285,7 +285,7 @@ class TestHelper:
             vis = cv2.circle(vis, center, radius, color, cv2.FILLED)
         
         pathlib.Path(OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
-        output_path = os.path.join(OUTPUT_DIR, 'lidar_to_image.png')
+        output_path = os.path.join(OUTPUT_DIR, f'lidar_to_image{framenum}.png')
         print ('Output lidar_to_image result:', output_path)
         cv2.imwrite(output_path, vis)
 
@@ -299,7 +299,7 @@ class TestHelper:
         self.ped_detector.test_set_data(self.zed_image, self.point_cloud)
         self.ped_detector.detect_agents()
 
-    def test_box_to_agent(self):
+    def test_box_to_agent(self, framenum=1):
         print ('\nTest function box_to_agent()...')
         self.ped_detector.test_set_data(self.zed_image, self.point_cloud)
         
@@ -324,7 +324,7 @@ class TestHelper:
                bbox_image = cv2.rectangle(bbox_image, (int(xmin), int(ymin)), (int(xmax), int(ymax)), (0, 0, 255), 2) 
         
         pathlib.Path(OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
-        output_path = os.path.join(OUTPUT_DIR, 'bbox_image.png')
+        output_path = os.path.join(OUTPUT_DIR, f'bbox_image{framenum}.png')
         print ('Output image with bbox result:', output_path)
         cv2.imwrite(output_path, bbox_image)
     
@@ -350,7 +350,7 @@ class TestHelper:
         detected_agents = []
         print ('Detected {} persons'.format(len(pedestrian_boxes)))
         for i,b in enumerate(pedestrian_boxes):
-            agent = ped_detector.box_to_agent(b, point_cloud_image, point_cloud_image_world, clusters)
+            agent = ped_detector.box_to_agent(b, point_cloud_image, point_cloud_image_world)#, clusters)
         #     plot_object('agent', agent)
         # klampt_vis(self.zed_image, point_cloud_lidar, self.depth)
           
@@ -366,15 +366,20 @@ if __name__=='__main__':
     ped_detector = PedestrianDetector(gem_interface, extrinsic)
     
     # load data
-    lidar_fn = os.path.join(args.src_dir, f'lidar{args.data_idx}.npz')
-    image_fn = os.path.join(args.src_dir, f'color{args.data_idx}.png')
-    depth_fn = os.path.join(args.src_dir, f'depth{args.data_idx}.tif')
+    all_data = []
+    for i in range(1, 30):
+        lidar_fn = os.path.join(args.src_dir, f'lidar{i}.npz')
+        image_fn = os.path.join(args.src_dir, f'color{i}.png')
+        depth_fn = os.path.join(args.src_dir, f'depth{i}.tif')
     
-    point_cloud = np.load(lidar_fn)['arr_0']
-    image = cv2.imread(image_fn)
-    depth = cv2.imread(depth_fn)
+        point_cloud = np.load(lidar_fn)['arr_0']
+        image = cv2.imread(image_fn)
+        depth = cv2.imread(depth_fn)
+
     
-    test_helper = TestHelper(ped_detector, point_cloud, image, depth)
+        test_helper = TestHelper(ped_detector, point_cloud, image, depth)
+
+        test_helper.test_box_to_agent(i)
     
     if args.test_target == 'fuse':
         test_helper.test_fuse_lidar_image()
@@ -388,6 +393,8 @@ if __name__=='__main__':
         test_helper.test_box_to_agent()
     if args.test_target == 'update':
         test_helper.test_update()
+
+
     
     print ('\nDone!')
     
