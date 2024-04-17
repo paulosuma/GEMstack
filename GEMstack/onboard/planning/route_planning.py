@@ -15,6 +15,63 @@ from dataclasses import replace
 from queue import PriorityQueue
 import numpy as np
 import math
+from .hybridtest import hybrid_a_star_planning
+
+class HybridAStarPlanner(Component):
+    def __init__(self, start : List[float], end : List[float]):
+        self.start = start
+        self.end = end
+        self.debug_counter = 0
+        self.ox = [5]
+        self.oy = [5]
+        waypoints = hybrid_a_star_planning(self.start, self.end, self.ox, self.oy)
+        self.route = Route(frame=ObjectFrameEnum.START,points=waypoints.tolist())
+
+    def state_inputs(self):
+        return []
+
+    def state_outputs(self) -> List[str]:
+        return ['route']
+
+    def rate(self):
+        return 1.0
+
+    def update(self,state : AllState):
+        # if perception algorithm change
+        ## TO DO: update state.end in perception algorithm
+        vehicle = copy.deepcopy(state.vehicle)
+        start_time = time()
+        replaning = False
+        agents = state.agents
+        agents = [a.to_frame(ObjectFrameEnum.START, start_pose_abs=state.start_vehicle_pose) for a in agents.values()]
+        print("agents: ", agents)
+        print("poly: ", agents[0].polygon_parent())
+
+        print(f"TEST END: state{state.end}, self{self.end}")
+        # self.debug_counter+=1
+        # if self.end != state.end and self.debug_counter > 3:
+        #     replaning = True
+
+        #     current_x, current_y, current_yaw = vehicle.pose.x, vehicle.pose.y, vehicle.pose.yaw
+
+        #     # Transpose the end position to the original start frame
+        #     dx = state.end[0] - current_x
+        #     dy = state.end[1] - current_y
+
+        #     dx_rot = dx * math.cos(current_yaw) - dy * math.sin(current_yaw)
+        #     dy_rot = dx * math.sin(current_yaw) + dy * math.cos(current_yaw)
+
+        #     new_x = current_x + dx_rot
+        #     new_y = current_y + dy_rot
+        #     new_yaw = state.end[2] + (current_yaw - self.start[2])
+
+        #     state.end[0] = new_x
+        #     state.end[1] = new_y
+        #     state.end[2] = new_yaw
+
+        #     self.end = state.end
+        #     print(f"END AFTER TRANSFORM: state{state.end}, self{self.end}")
+        return self.route
 
 
 class StaticRoutePlanner(Component):
@@ -194,7 +251,7 @@ class SearchNavigationRoutePlanner(Component):
         self.LONGITUDINAL_DISTANCE_BUFFER = .5
 
         self.debug_counter = 0
-
+        
 
         print("NavigationRoutePlanner: start",start)
         print("NavigationRoutePlanner: end",end)
@@ -250,10 +307,11 @@ class SearchNavigationRoutePlanner(Component):
 
         # if perception algorithm change
         ## TO DO: update state.end in perception algorithm
+        start_time = time()
         replaning = False
-        print("TEST END: ", state.end)
+        print(f"TEST END: state{state.end}, self{self.end}")
         self.debug_counter+=1
-        if self.end != state.end and self.debug_counter > 2:
+        if self.end != state.end and self.debug_counter > 3:
             replaning = True
 
             current_x, current_y, current_yaw = vehicle.pose.x, vehicle.pose.y, vehicle.pose.yaw
@@ -274,9 +332,9 @@ class SearchNavigationRoutePlanner(Component):
             state.end[2] = new_yaw
 
             self.end = state.end
-            print("END AFTER TRANSPOASE: ", state.end)
+            print(f"END AFTER TRANSFORM: state{state.end}, self{self.end}")
 
-        replan = replanning or self.last_path is None or not check_path(self.last_path)
+        replan = replaning or self.last_path is None or not check_path(self.last_path)
         # replan = True
         if replan: # replan when last route is not valid
             # Compute grid map
@@ -348,4 +406,9 @@ class SearchNavigationRoutePlanner(Component):
             self.last_path = last_path
         
         route = self.route
+
+        end_time = time()
+        elapsed_time = end_time - start_time
+        print("Elapsed time:", elapsed_time, "seconds")
+
         return route

@@ -7,9 +7,9 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 
-from libraries.dynamic_programming_heuristic import calc_distance_heuristic
-import libraries.reeds_shepp_path_planning as rs
-from libraries.car import move, check_car_collision, MAX_STEER, WB, plot_car, BUBBLE_R
+from .dynamic_programming_heuristic import calc_distance_heuristic
+from .reeds_shepp_path_planning import calc_paths, pi_2_pi
+from .car import move, check_car_collision, MAX_STEER, WB, plot_car, BUBBLE_R
 
 XY_GRID_RESOLUTION = 5.0  # [m]
 YAW_GRID_RESOLUTION = np.deg2rad(15.0)  # [rad]
@@ -142,7 +142,7 @@ def analytic_expansion(current, goal, ox, oy, kd_tree):
     goal_yaw = goal.yaw_list[-1]
 
     max_curvature = math.tan(MAX_STEER) / WB
-    paths = rs.calc_paths(start_x, start_y, start_yaw,
+    paths = calc_paths(start_x, start_y, start_yaw,
                           goal_x, goal_y, goal_yaw,
                           max_curvature, step_size=MOTION_RESOLUTION)
 
@@ -229,7 +229,7 @@ def hybrid_a_star_planning(start, goal, ox, oy, xy_resolution=5, yaw_resolution=
     yaw_resolution: yaw angle resolution [rad]
     """
 
-    start[2], goal[2] = rs.pi_2_pi(start[2]), rs.pi_2_pi(goal[2])
+    start[2], goal[2] = pi_2_pi(start[2]), pi_2_pi(goal[2])
     tox, toy = ox[:], oy[:]
 
     obstacle_kd_tree = cKDTree(np.vstack((tox, toy)).T)
