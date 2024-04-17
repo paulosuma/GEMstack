@@ -3,26 +3,87 @@ from scipy.optimize import linear_sum_assignment
 import numpy as np
 import importlib.util
 
+
+'''
+CONFIG FILE/PRARAMETERS for KalmanTracker:
+(some examples for configs are provided/set as defaults. )
+
+MUST PROVIDE:
+1: dim_x = the dimensions for state
+2: dim_z = the dimensions for measurement
+3: F = state transition matrix. Must be shape (dim_x, dim_x)
+4: H = measurement matrix. Must be shape (dim_z, dim_x)
+5: P = Covariance matrix for initial observation. Represents uncertainty of initial state.
+    Must be matrix of shape (dim_x, dim_x)
+6: Q = Process Covariance Matrix. Represents uncertainty of process
+    Must be matrix of shape (dim_x, dim_x)
+7: R = Measurement Covariance Matrix. Represents uncertainty of measurement
+    Must be matrix of shape (dim_z, dim_z)
+8: max_age = After how many time_steps with no observation should we delete a kalman tracker.
+    Must be positive int
+9: cost_function(predicted_state, observation) =
+    function which calculates cost (or dissimilarity) between a
+    predicted state (size dim_x) and an observation (size dim_z)
+10: threshold = max limit for whether we consider a predicted state and new observation a match
+11: initial_state(measurement) = 
+     function which provides initial state, given just the first observation
+     measurement is vector of size (dim_z). Output is vector of size (dim_x)
+'''
+
 class KalmanTracker:
-    def __init__(self, config_file_path):
-        spec = importlib.util.spec_from_file_location("config", config_file_path)
-        config = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(config)
+    def __init__(self, config_file_path=None, \
+                 dim_x=4, dim_z=2, F=None, H=None, P= None, Q=None, R=None, \
+                 max_age=6, cost_function=None, threshold=10, initial_state=None):
         
-        self.kalman_filters = {}
-        self.max_id = 0
-               
-        self.dim_x = config.dim_x
-        self.dim_z = config.dim_z
-        self.F = config.F
-        self.H = config.H
-        self.P = config.P
-        self.Q = config.Q
-        self.R = config.R
-        self.max_age = config.max_age
-        self.threshold = config.threshold
-        self.cost_function = config.cost_function
-        self.initial_state = config.initial_state
+        def default_cost_fn(predicted_state, measurement):
+            return np.linalg.norm(predicted_state[0:2] - measurement)
+        
+        def default_initial_state(measurement):
+            state = np.zeros(dim_x)
+            state[0:dim_z] = measurement
+            return state
+        
+
+        if config_file_path is not None:
+            spec = importlib.util.spec_from_file_location("config", config_file_path)
+            config = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(config)
+            
+            self.kalman_filters = {}
+            self.max_id = 0
+                
+            self.dim_x = config.dim_x
+            self.dim_z = config.dim_z
+            self.F = config.F
+            self.H = config.H
+            self.P = config.P
+            self.Q = config.Q
+            self.R = config.R
+            self.max_age = config.max_age
+            self.threshold = config.threshold
+            self.cost_function = config.cost_function
+            self.initial_state = config.initial_state
+            
+        else: # if no config file is provided, use the parameters provided OR defaults. 
+            self.kalman_filters = {}
+            self.max_id = 0
+                
+            self.dim_x = dim_x
+            self.dim_z = dim_z
+            self.F = np.array([[1, 0, 1, 0], 
+                                [0, 1, 0, 1], 
+                                [0, 0, 1, 0], 
+                                [0, 0, 0, 1]]) if F is None else F
+            self.H = np.array([[1, 0, 0, 0], 
+                               [0, 1, 0, 0]]) if H is None else H
+            self.P = np.eye(dim_x) * 100 if P is None else P
+            self.Q = np.eye(dim_x) * 0.01 if Q is None else Q
+            self.R = np.eye(dim_z) * 1 if R is None else R
+            self.max_age = max_age
+            self.threshold = threshold
+            self.cost_function = default_cost_fn if cost_function is None else cost_function
+            self.initial_state = default_initial_state if initial_state else initial_state
+    
     
     # Must be called in loop to continuously update all tracked objects
     # bounding_boxes are just the list of measurements/observations/sensor readings

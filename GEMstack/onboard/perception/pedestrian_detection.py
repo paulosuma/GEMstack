@@ -15,6 +15,7 @@ import numpy as np
 from typing import Dict,Tuple, List
 import time
 from numpy.linalg import inv
+from .kalman_tracker import KalmanTracker
 
 def Pmatrix(fx,fy,cx,cy):
     """Returns a projection matrix for a given set of camera intrinsics."""
@@ -109,7 +110,8 @@ class PedestrianDetector(Component):
         self.pedestrian_counter = 0
         self.last_agent_states = {}
         self.previous_agents = {} 
-        
+        self.kalman_tracker = KalmanTracker()
+
         # init transformation parameters
         if extrinsic is None:
             extrinsic = [[-0.00519, -0.99997, 0.005352, 0.1627], 
