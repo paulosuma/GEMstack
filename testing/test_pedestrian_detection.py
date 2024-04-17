@@ -143,7 +143,7 @@ class TestHelper:
         self.yolo_detector = ped_detector.detector
         self.point_cloud = point_cloud
         self.zed_image = zed_image
-        self.depth = depth
+        self.depth = depth        
     
     def test_fuse_lidar_image(self):
         detection_result = self.yolo_detector(self.zed_image,verbose=False)
@@ -303,9 +303,8 @@ class TestHelper:
         print ('\nTest function box_to_agent()...')
         self.ped_detector.test_set_data(self.zed_image, self.point_cloud)
         
-        yolo_path = os.path.join(abs_path, '../GEMstack/knowledge/detection/yolov8n.pt')
-        detector = YOLO(yolo_path)
-        detection_result = detector(self.zed_image,verbose=False)
+
+        detection_result = self.yolo_detector(self.zed_image,verbose=False)
         
         bbox_image = self.zed_image.copy()
         
@@ -381,18 +380,18 @@ if __name__=='__main__':
 
         test_helper.test_box_to_agent(i)
     
-    if args.test_target == 'fuse':
-        test_helper.test_fuse_lidar_image()
-    if args.test_target == 'lidar_to_image':
-        test_helper.test_lidar_to_image()
-    if args.test_target == 'lidar_to_image_dbscan':
-        test_helper.test_lidar_to_image_dbscan()
-    if args.test_target == 'detect_agents':
-        test_helper.test_detect_agents()
-    if args.test_target == 'box_to_agent':
-        test_helper.test_box_to_agent()
-    if args.test_target == 'update':
-        test_helper.test_update()
+    # if args.test_target == 'fuse':
+    #     test_helper.test_fuse_lidar_image()
+    # if args.test_target == 'lidar_to_image':
+    #     test_helper.test_lidar_to_image()
+    # if args.test_target == 'lidar_to_image_dbscan':
+    #     test_helper.test_lidar_to_image_dbscan()
+    # if args.test_target == 'detect_agents':
+    #     test_helper.test_detect_agents()
+    # if args.test_target == 'box_to_agent':
+    #     test_helper.test_box_to_agent()
+    # if args.test_target == 'update':
+    #     test_helper.test_update()
 
 
     
