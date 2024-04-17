@@ -9,7 +9,7 @@ from GEMstack.onboard.perception.pedestrian_detection import PedestrianDetector,
 from GEMstack.onboard.interface.gem import GEMInterface
 # from GEMstack.utils.mpl_visualization import plot_object
 from GEMstack.utils.klampt_visualization import plot_object
-from GEMstack.state import VehicleState
+from GEMstack.state import VehicleState, AgentEnum
 import numpy as np
 import pathlib
 from ultralytics import YOLO
@@ -332,7 +332,6 @@ class TestHelper:
                                                   ped_detector.xrange, 
                                                   ped_detector.yrange)
         
-        
         # Perform DBSCAN clustering
         epsilon = 0.09  # Epsilon parameter for DBSCAN
         min_samples = 5  # Minimum number of samples in a cluster
@@ -352,6 +351,59 @@ class TestHelper:
             agent = ped_detector.box_to_agent(b, point_cloud_image, point_cloud_image_world)#, clusters)
         #     plot_object('agent', agent)
         # klampt_vis(self.zed_image, point_cloud_lidar, self.depth)
+        
+    def test_track_agents(self, framenum=30):
+        for i in range(1, framenum):
+            lidar_fn = os.path.join(args.src_dir, f'lidar{i}.npz')
+            image_fn = os.path.join(args.src_dir, f'color{i}.png')
+            depth_fn = os.path.join(args.src_dir, f'depth{i}.tif')
+        
+            point_cloud = np.load(lidar_fn)['arr_0']
+            image = cv2.imread(image_fn)
+            depth = cv2.imread(depth_fn)
+            
+            self.ped_detector.test_set_data(image, point_cloud)
+
+            detected_agents, detection_result = self.ped_detector.detect_agents()
+            
+            detected_pedestrians = [x for x in detected_agents if x.type==AgentEnum.PEDESTRIAN]
+            
+            current_agent_states, matches = self.track_agents(None,detected_agents)
+            rev_matches = {v:k for k,v in matches.items()}
+            
+            bbox_image = image.copy()
+            
+            #TODO: create boxes from detection result
+            pedestrian_boxes = []
+            detected_ped_id = 0
+            for box in detection_result[0].boxes: # only one image, so use index 0 of result
+                class_id = int(box.cls[0].item())
+                if class_id == 0: # class 0 stands for pedestrian
+                    bbox = box.xywh[0].tolist()
+                    pedestrian_boxes.append(bbox)
+                    pid = rev_matches[detected_ped_id]
+                    ag_state = current_agent_states[pid]
+        
+                    # draw bbox
+                    x,y,w,h = bbox
+                    xmin, xmax = x - w/2, x + w/2
+                    ymin, ymax = y - h/2, y + h/2
+                    bbox_image = cv2.rectangle(bbox_image, (int(xmin), int(ymin)), (int(xmax), int(ymax)), (0, 0, 255), 2) 
+                    bbox_image = cv2.putText(
+                        img = bbox_image,
+                        text = f"PID:{pid}, XY:{ag_state.pose.x},{ag_state.pose.y}, VELXY:{ag_state.velocity[0]},{ag_state.velocity[1]}",
+                        org = (x, y+10),
+                        fontFace = cv2.FONT_HERSHEY_DUPLEX,
+                        fontScale = 3.0,
+                        color = (125, 246, 55),
+                        thickness = 3
+                    )
+                    detected_ped_id += 1
+            
+            pathlib.Path(OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
+            output_path = os.path.join(OUTPUT_DIR, f'bbox_image{framenum}.png')
+            print ('Output image with bbox result:', output_path)
+            cv2.imwrite(output_path, bbox_image)
           
 
 

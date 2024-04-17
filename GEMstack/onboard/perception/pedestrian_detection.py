@@ -5,6 +5,7 @@ from ..interface.gem import GEMInterface
 from ..component import Component
 from ultralytics import YOLO
 import cv2
+from generic_kalman_filtering_class import KalmanTracker
 try:
     from sensor_msgs.msg import CameraInfo
     from image_geometry import PinholeCameraModel
@@ -82,7 +83,7 @@ def filter_lidar_by_range(point_cloud, xrange: Tuple[float, float], yrange: Tupl
 
 class PedestrianDetector(Component):
     """Detects and tracks pedestrians."""
-    def __init__(self,vehicle_interface : GEMInterface, extrinsic=None):
+    def __init__(self,vehicle_interface : GEMInterface, extrinsic=None, tracker_config="temp_config.py"):
         self.vehicle_interface = vehicle_interface
         # self.detector = YOLO(settings.get('pedestrian_detection.model'))
         self.detector = YOLO('GEMstack/knowledge/detection/yolov8n.pt')
@@ -266,7 +267,7 @@ class PedestrianDetector(Component):
         return AgentState(pose=pose,dimensions=dims,outline=None,type=AgentEnum.PEDESTRIAN,activity=AgentActivityEnum.MOVING,velocity=(0,0,0),yaw_rate=0)
 
         
-    def detect_agents(self):
+    def detect_agents(self, test=False):
         detection_result = self.detector(self.zed_image,verbose=False)
         
         #TODO: create boxes from detection result
@@ -312,6 +313,8 @@ class PedestrianDetector(Component):
             agent = self.box_to_agent(b, point_cloud_image, point_cloud_image_world)
             if agent is not None:
                 detected_agents.append(agent)
+        if test:
+            return detected_agents, detection_result 
         return detected_agents
         
     def estimate_velocity(self, prev_pose, current_pose) -> tuple:
@@ -329,49 +332,68 @@ class PedestrianDetector(Component):
         return distance < distance_threshold
 
     # TODO: Update this to be our Kalman Filter
-    def track_agents(self, vehicle : VehicleState, detected_agents : List[AgentState]):
+    def track_agents(self, vehicle : VehicleState, detected_agents : List[AgentState], test=False):
         """Given a list of detected agents, updates the state of the agents."""
         # TODO: keep track of which pedestrians were detected before u 
         # results = {}
 
-        current_frame_results = {}
-        new_pedestrian_counter = 0  
+        # current_frame_results = {}
+        # new_pedestrian_counter = 0  
 
-        for current_agent in detected_agents:
-            assigned = False  # Flag to check if the current agent is assigned to an existing track
+        # for current_agent in detected_agents:
+        #     assigned = False  # Flag to check if the current agent is assigned to an existing track
 
-            for ped_id, prev_agent in self.previous_agents.items():
+        #     for ped_id, prev_agent in self.previous_agents.items():
                 
-                # Car moves between frames. So have to transform the previous agent's pose
-                # to align with the current vehicle's pose.
-                # prev_agent = prev_agent.to_frame(ObjectFrameEnum.CURRENT, vehicle.pose)
+        #         # Car moves between frames. So have to transform the previous agent's pose
+        #         # to align with the current vehicle's pose.
+        #         # prev_agent = prev_agent.to_frame(ObjectFrameEnum.CURRENT, vehicle.pose)
                 
-                if self.overlaps(current_agent.pose, prev_agent.pose):
-                    # If the current agent overlaps with a previous agent, it's the same pedestrian
-                    velocity = self.estimate_velocity(prev_agent.pose, current_agent.pose)
-                    # Update agent state with new position and calculated velocity
-                    updated_agent = AgentState(pose=current_agent.pose, dimensions=current_agent.dimensions,
-                                            outline=current_agent.outline, type=current_agent.type,
-                                            activity=AgentActivityEnum.MOVING, velocity=velocity, yaw_rate=current_agent.yaw_rate)
-                    current_frame_results[ped_id] = updated_agent
-                    assigned = True
-                    break  
+        #         if self.overlaps(current_agent.pose, prev_agent.pose):
+        #             # If the current agent overlaps with a previous agent, it's the same pedestrian
+        #             velocity = self.estimate_velocity(prev_agent.pose, current_agent.pose)
+        #             # Update agent state with new position and calculated velocity
+        #             updated_agent = AgentState(pose=current_agent.pose, dimensions=current_agent.dimensions,
+        #                                     outline=current_agent.outline, type=current_agent.type,
+        #                                     activity=AgentActivityEnum.MOVING, velocity=velocity, yaw_rate=current_agent.yaw_rate)
+        #             current_frame_results[ped_id] = updated_agent
+        #             assigned = True
+        #             break  
 
-            if not assigned:
-                # This is a new pedestrian
-                new_id = f"ped{self.pedestrian_counter + new_pedestrian_counter}"
-                new_pedestrian_counter += 1
-                # For new pedestrians, the velocity is initialized to (0, 0, 0)
-                new_agent = AgentState(pose=current_agent.pose, dimensions=current_agent.dimensions,
-                                    outline=None, type=AgentEnum.PEDESTRIAN,
-                                    activity=AgentActivityEnum.MOVING, velocity=(0, 0, 0), yaw_rate=0)
-                current_frame_results[new_id] = new_agent
+        #     if not assigned:
+        #         # This is a new pedestrian
+        #         new_id = f"ped{self.pedestrian_counter + new_pedestrian_counter}"
+        #         new_pedestrian_counter += 1
+        #         # For new pedestrians, the velocity is initialized to (0, 0, 0)
+        #         new_agent = AgentState(pose=current_agent.pose, dimensions=current_agent.dimensions,
+        #                             outline=None, type=AgentEnum.PEDESTRIAN,
+        #                             activity=AgentActivityEnum.MOVING, velocity=(0, 0, 0), yaw_rate=0)
+        #         current_frame_results[new_id] = new_agent
 
-        # Update the pedestrian counter and previous_agents for the next frame
-        self.pedestrian_counter += new_pedestrian_counter
-        self.previous_agents = {p_id: agent for p_id, agent in current_frame_results.items()}
-
-        return current_frame_results
+        # # Update the pedestrian counter and previous_agents for the next frame
+        # self.pedestrian_counter += new_pedestrian_counter
+        # self.previous_agents = {p_id: agent for p_id, agent in current_frame_results.items()}
+        detections = []
+        for agent in detected_agents:
+            if agent.type==AgentEnum.PEDESTRIAN:
+                x,y,z = agent.pose.x, agent.pose.y, agent.pose.z
+                w,h,l = agent.dimensions
+                detections.append(np.array([x,y,w,l]))
+        
+        kalman_agent_states, matches = self.tracker.update_pedestrian_tracking(detections)
+        results = {}
+        for pid in kalman_agent_states:
+            ag_state = kalman_agent_states[pid]
+            results[pid] = AgentState(pose=ObjectPose(t=0, x=ag_state[0], y=ag_state[1], z=0, yaw=0, pitch=0, roll=0, frame=ObjectFrameEnum.CURRENT),
+                                      dimensions=(ag_state[2], ag_state[3],1.5),
+                                      velocity=(ag_state[4], ag_state[5], 0),
+                                      type=AgentEnum.PEDESTRIAN,
+                                      activity=AgentActivityEnum.MOVING, yaw_rate=0)
+        
+        if test:
+            return kalman_agent_states, matches
+        
+        return kalman_agent_states
         # for i,a in enumerate(detected_agents):
         #     results['pedestrian_'+str(self.pedestrian_counter)] = a
         #     self.pedestrian_counter += 1

@@ -123,7 +123,7 @@ class KalmanTracker:
         tracked_pedestrians = {
             pedestrian_id: kalman_filter.x for pedestrian_id, kalman_filter in self.kalman_filters.items()
         }
-        return tracked_pedestrians
+        return tracked_pedestrians, matches
     
     ### HELPER FUNCTIONS
     def generate_new_pedestrian_id(self):
