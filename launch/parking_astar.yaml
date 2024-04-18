@@ -15,16 +15,16 @@ drive:
         perception_normalization : StandardPerceptionNormalizer
     planning:
         route_planning:
-            type: SearchNavigationRoutePlanner
-            args: {start: [0.,0.,0.,0.,0.], end: [17.,17.,3.14,0.,0.]}
+            type: HybridAStarPlanner
+            args: {start: [0.,0.,0.,0.,0.], end:  [17,17,0.,0.,0.]}
         motion_planning:
             type: RouteToTrajectoryPlanner
             # type: mpc_motion_planning.MPCTrajectoryPlanner
             args: [0.5]  #desired speed in m/s.  If null, this will keep the route untimed for the trajectory tracker
         trajectory_tracking:
-            # type: pure_pursuit.PurePursuitTrajectoryTracker
-            type: mpc_tracking.MPCTracker
-            # args: {desired_speed: 1.0}  #approximately 5mph
+            type: pure_pursuit.PurePursuitTrajectoryTracker
+            #type: mpc_tracking.MPCTracker
+            args: {desired_speed: 1.0}  #approximately 5mph
             print: False
 
 log:

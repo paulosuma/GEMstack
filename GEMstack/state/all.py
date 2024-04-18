@@ -49,7 +49,7 @@ class AllState(SceneState):
 
     # Parking attribute
     # default should be the same as original destination
-    end: List[float] = field(default_factory=lambda: [16.8,16.8,3.14,0.,0.])
+    end: List[float] = field(default_factory=lambda: [12,10,0.,0.,0.])
 
     @staticmethod
     def zero():

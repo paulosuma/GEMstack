@@ -16,7 +16,7 @@ from math import cos, sin, tan, pi
 import matplotlib.pyplot as plt
 import numpy as np
 
-from libraries.angle import rot_mat_2d
+from .angle import rot_mat_2d
 
 WB = 3.0  # rear to front wheel
 W = 7.0 # width of car

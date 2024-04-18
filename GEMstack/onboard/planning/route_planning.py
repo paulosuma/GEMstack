@@ -16,19 +16,31 @@ from queue import PriorityQueue
 import numpy as np
 import math
 from .hybridtest import hybrid_a_star_planning
+from .reeds_shepp_path_planning import pi_2_pi
 
 class HybridAStarPlanner(Component):
     def __init__(self, start : List[float], end : List[float]):
         self.start = start
         self.end = end
+        self.ox = [100]
+        self.oy = [100]
+
         self.debug_counter = 0
-        self.ox = [5]
-        self.oy = [5]
-        waypoints = hybrid_a_star_planning(self.start, self.end, self.ox, self.oy)
-        self.route = Route(frame=ObjectFrameEnum.START,points=waypoints.tolist())
+        self.init = False
+
+        path = hybrid_a_star_planning(self.start[:3], self.end[:3], self.ox, self.oy)
+        print(path)
+        #waypoints = list(map(list, path))
+
+        waypoints = [[x, y] for x, y, z in zip(path.x_list, path.y_list, path.yaw_list)]
+        #print("Path coordinates:")
+        #for point in path_coordinates:
+        #    print(point)
+        self.route = Route(frame=ObjectFrameEnum.START,points=waypoints)
 
     def state_inputs(self):
-        return []
+         # return ['vehicle', 'roadgraph']
+        return ['all'] # Temporary for collision detection, should be replaced by the roadgraph
 
     def state_outputs(self) -> List[str]:
         return ['route']
@@ -39,40 +51,44 @@ class HybridAStarPlanner(Component):
     def update(self,state : AllState):
         # if perception algorithm change
         ## TO DO: update state.end in perception algorithm
-        vehicle = copy.deepcopy(state.vehicle)
-        start_time = time()
-        replaning = False
+
+        if self.init == False:
+            path = hybrid_a_star_planning(self.start[:3], self.end[:3], self.ox, self.oy)
+            waypoints = [[x, y] for x, y, z in zip(path.x_list, path.y_list, path.yaw_list)]
+            self.route = Route(frame=ObjectFrameEnum.START,points=waypoints)
+            self.init = True
+            return self.route
+
         agents = state.agents
         agents = [a.to_frame(ObjectFrameEnum.START, start_pose_abs=state.start_vehicle_pose) for a in agents.values()]
-        print("agents: ", agents)
-        print("poly: ", agents[0].polygon_parent())
+        # print("agents: ", agents)
+        # TODO: Implement obstacle avoid function
+        # for agent in agents:
+        #     self.ox.append(agent.pose.x)
+        #     self.oy.append(agent.pose.y)
+        # print("obstacles: ", self.ox, self.oy)
+
+        vehicle = copy.deepcopy(state.vehicle)
+        current_x, current_y, current_yaw = vehicle.pose.x, vehicle.pose.y, vehicle.pose.yaw
+        print(f"CURRENT POSITION: x: {current_x}, y:{current_y}, yaw: {current_yaw}")
 
         print(f"TEST END: state{state.end}, self{self.end}")
-        # self.debug_counter+=1
-        # if self.end != state.end and self.debug_counter > 3:
-        #     replaning = True
+        replaning = False
+        self.debug_counter+=1
+        if self.end != state.end and self.debug_counter > 15:
 
-        #     current_x, current_y, current_yaw = vehicle.pose.x, vehicle.pose.y, vehicle.pose.yaw
+            replaning = True
+            self.end = state.end
+            print(f"END AFTER TRANSFORM: state{state.end}, self{self.end}")
+            print(self.start[:3])
+            print(self.end[:3])
+            print(pi_2_pi(self.start[2]))
+            print(pi_2_pi(self.end[2]))
+            path = hybrid_a_star_planning(self.start[:3], self.end[:3], self.ox, self.oy)
+            waypoints = [[x, y] for x, y, z in zip(path.x_list, path.y_list, path.yaw_list)]
+            self.route = Route(frame=ObjectFrameEnum.START,points=waypoints)
 
-        #     # Transpose the end position to the original start frame
-        #     dx = state.end[0] - current_x
-        #     dy = state.end[1] - current_y
-
-        #     dx_rot = dx * math.cos(current_yaw) - dy * math.sin(current_yaw)
-        #     dy_rot = dx * math.sin(current_yaw) + dy * math.cos(current_yaw)
-
-        #     new_x = current_x + dx_rot
-        #     new_y = current_y + dy_rot
-        #     new_yaw = state.end[2] + (current_yaw - self.start[2])
-
-        #     state.end[0] = new_x
-        #     state.end[1] = new_y
-        #     state.end[2] = new_yaw
-
-        #     self.end = state.end
-        #     print(f"END AFTER TRANSFORM: state{state.end}, self{self.end}")
         return self.route
-
 
 class StaticRoutePlanner(Component):
     """Reads a route from disk and returns it as the desired route."""
