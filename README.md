@@ -34,12 +34,7 @@ The MPC controller is the controller our group works on, and is defined in `GEMs
 
 - We define our cost function as following. Note that $n$ is the horizon duration, and $Q = (q_x, q_y, q_\theta, q_v)$, $R = (r_a, r_\delta)$, and $S = (s_a, s_\delta)$ are weight parameters.
 
-  $J_q = q_x  \sum_{t=1}^n (x_t - x'_t) ^ 2 + q_y  \sum_{t=1}^n (y_t - y'_t)^2 + q_{\theta}  \sum_{t=1}^n (\theta_t - \theta'_t)^2 + q_v  \sum_{t=1}^n (v - v'_t)^2$ is the pose tracking cost where the superscript $'$ indicates the reference value.
+  ![Screenshot from 2024-04-17 23-38-22](https://github.com/krishauser/GEMstack/assets/47130002/b74a424b-94eb-4f67-8eca-1da9f8e312a1)
 
-  $J_r = r_a  \sum_{t=1}^n a_t ^ 2 + r_\delta  \sum_{t=1}^n \delta_t ^ 2$ is the control cost.
-  
-  $J_s = s_a  \sum_{t=1}^n (a_t - a_{t - 1})^2 + s_\delta \sum_{t=1}^n (\delta_t   - \delta_{t - 1}) ^ 2$ is the path smoothing smoothing cost where we penalizes large deviations in consecutive controls.
-
-  $J = J_q + J_r + J_s$ is the final cost. It is subject to the dynamic constraints and any restrictions on the control inputs.
 
 - We want to note that the performance of the MPC is highly dependable on the cost function. Feel free to customize it based on your specific problem and experiment with different parameters.
