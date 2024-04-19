@@ -82,9 +82,11 @@ def filter_lidar_by_range(point_cloud, xrange: Tuple[float, float], yrange: Tupl
 
 class PedestrianDetector(Component):
     """Detects and tracks pedestrians."""
-    def __init__(self,vehicle_interface : GEMInterface, extrinsic=None, tracker_config="GEMstack/onboard/perception/temp_config.py"):
+    def __init__(self,vehicle_interface : GEMInterface, extrinsic=None, tracker_config="GEMstack/onboard/perception/temp_config.py", detection_file_name="GEMstack/onboard/prediction/tracking_results.txt"):
         self.vehicle_interface = vehicle_interface
         # self.detector = YOLO(settings.get('pedestrian_detection.model'))
+        self.current_frame = 0
+        self.detection_file_name = detection_file_name
         self.detector = YOLO('GEMstack/knowledge/detection/yolov8n.pt')
         self.camera_info_sub = None
         self.camera_info = None
@@ -139,6 +141,20 @@ class PedestrianDetector(Component):
         self.xrange = (2.3959036, 5.8143473)
         self.yrange = (-2.0247698, 4.0374074)
         
+    # ag_dict -> dictionary of ped_id to agent_state
+    # write_frame_to -> writes all detected agents at self.current_frame
+    # to an output file in the eth dataset format
+    # eth dataset format: [frame_number pedestrian_ID pos_x pos_z pos_y v_x v_z v_y ]
+    def write_frame_to(self, ag_dict : Dict[int, AgentState]):
+        with open(self.detection_file_name, 'a') as f:
+            for pid in sorted(ag_dict):
+                curr_agent = ag_dict[pid]
+                curr_pose = curr_agent.pose
+                curr_velocity = curr_agent.velocity
+                agent_frame_data = f"{self.current_frame} {pid} {curr_pose.x} -1 {curr_pose.y} {curr_velocity[0]} -1 {curr_velocity[1]} \n"
+            
+                f.write(agent_frame_data)
+        self.current_frame += 1
     def rate(self):
         return 4.0
     
@@ -388,7 +404,7 @@ class PedestrianDetector(Component):
                                       velocity=(ag_state[4], ag_state[5], 0),
                                       type=AgentEnum.PEDESTRIAN,
                                       activity=AgentActivityEnum.MOVING, yaw_rate=0, outline=None)
-        
+        self.write_frame_to(results)
         if test:
             return results, matches
         

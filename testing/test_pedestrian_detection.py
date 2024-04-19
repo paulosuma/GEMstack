@@ -32,7 +32,7 @@ import time
 import argparse
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--test_target', '-t', type=str, required=True, 
+parser.add_argument('--test_target', '-t', type=str, required=False, 
                     choices=['fuse', 'lidar_to_image', 'lidar_to_image_dbscan',
                              'detect_agents', 'box_to_agent', 'update'])
 parser.add_argument('--output_dir', '-o', type=str, default='save')
@@ -429,7 +429,7 @@ if __name__=='__main__':
     
     test_helper = TestHelper(ped_detector, None, None, None)
     
-    test_helper.test_track_agents()
+    test_helper.test_track_agents(framenum=10)
     # load data
     # all_data = []
     # for i in range(1, 30):
