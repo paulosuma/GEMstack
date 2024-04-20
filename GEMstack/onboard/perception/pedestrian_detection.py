@@ -85,8 +85,13 @@ class PedestrianDetector(Component):
     def __init__(self,vehicle_interface : GEMInterface, extrinsic=None, tracker_config="GEMstack/onboard/perception/temp_config.py", detection_file_name="GEMstack/onboard/prediction/tracking_results.txt"):
         self.vehicle_interface = vehicle_interface
         # self.detector = YOLO(settings.get('pedestrian_detection.model'))
+        
         self.current_frame = 0
         self.detection_file_name = detection_file_name
+        # f = open(self.detection_file_name, 'w')
+        # f.close()
+        
+        self.tracking_results = {}
         self.detector = YOLO('GEMstack/knowledge/detection/yolov8n.pt')
         self.camera_info_sub = None
         self.camera_info = None
@@ -145,16 +150,32 @@ class PedestrianDetector(Component):
     # write_frame_to -> writes all detected agents at self.current_frame
     # to an output file in the eth dataset format
     # eth dataset format: [frame_number pedestrian_ID pos_x pos_z pos_y v_x v_z v_y ]
-    def write_frame_to(self, ag_dict : Dict[int, AgentState]):
-        with open(self.detection_file_name, 'a') as f:
-            for pid in sorted(ag_dict):
-                curr_agent = ag_dict[pid]
-                curr_pose = curr_agent.pose
-                curr_velocity = curr_agent.velocity
-                agent_frame_data = f"{self.current_frame} {pid} {curr_pose.x} -1 {curr_pose.y} {curr_velocity[0]} -1 {curr_velocity[1]} \n"
-            
-                f.write(agent_frame_data)
+    def update_track_history(self, ag_dict : Dict[int, AgentState]):
+        for pid in sorted(ag_dict):
+            curr_agent = ag_dict[pid]
+            curr_pose = curr_agent.pose
+            # 11.0 5.0 Pedestrian -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.59 -1.0 0.93 -1.0
+            agent_frame_data = f"{float(self.current_frame)} {float(pid)} Pedestrian -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 {curr_pose.x} -1.0 {curr_pose.y} -1.0\n"
+            if self.current_frame in self.tracking_results:
+                self.tracking_results[self.current_frame].append(agent_frame_data)
+            else:
+                self.tracking_results[self.current_frame] = [agent_frame_data]
+                       
+        self.tracking_results.pop(self.current_frame - 8, None)
+        print("Frame: ", self.current_frame - 8)
         self.current_frame += 1
+        
+        
+    def write_recent_frames(self):
+        with open(self.detection_file_name, 'w') as f:
+            for frame in sorted(self.tracking_results):
+                for line in sorted(self.tracking_results[frame]):
+                    f.write(line)
+            for frame in range(self.current_frame, self.current_frame + 12):
+                dummy_frame = f"{float(frame)} 1.0 Pedestrian -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 0.0 -1.0 0.0 -1.0\n"
+                f.write(dummy_frame)
+            
+            
     def rate(self):
         return 4.0
     
@@ -404,7 +425,8 @@ class PedestrianDetector(Component):
                                       velocity=(ag_state[4], ag_state[5], 0),
                                       type=AgentEnum.PEDESTRIAN,
                                       activity=AgentActivityEnum.MOVING, yaw_rate=0, outline=None)
-        self.write_frame_to(results)
+        self.update_track_history(results)
+
         if test:
             return results, matches
         

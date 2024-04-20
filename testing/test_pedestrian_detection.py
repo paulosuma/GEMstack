@@ -414,7 +414,8 @@ class TestHelper:
             output_path = os.path.join(OUTPUT_DIR, f'bbox_image{i}.png')
             print ('Output image with bbox result:', output_path)
             cv2.imwrite(output_path, bbox_image)
-          
+            
+            self.ped_detector.write_recent_frames()
 
 
 if __name__=='__main__':
@@ -429,7 +430,8 @@ if __name__=='__main__':
     
     test_helper = TestHelper(ped_detector, None, None, None)
     
-    test_helper.test_track_agents(framenum=10)
+    test_helper.test_track_agents(framenum=15)
+
     # load data
     # all_data = []
     # for i in range(1, 30):
