@@ -152,9 +152,11 @@ class GEMHardwareInterface(GEMInterface):
     def subscribe_sensor(self, name, callback, type = None):
         if name == 'gnss':
             topic = self.ros_sensor_topics[name]
+            #re-write this part, we don't have inspva GNSS device on gem e4.
+            
             if topic.endswith('inspva'):
                 if type is not None and (type is not Inspva and type is not GNSSReading):
-                    raise ValueError("GEMHardwareInterface GEM e2 only supports Inspva/GNSSReading for GNSS")
+                    raise ValueError("GEMHardwareInterface GEM e2 only supports Inspva/GNSSReading for GNSS") 
                 if type is Inspva:
                     self.gnss_sub = rospy.Subscriber(topic, Inspva, callback)
                 else:
@@ -170,12 +172,14 @@ class GEMHardwareInterface(GEMInterface):
                         callback(GNSSReading(pose,inspva_msg.status))
                     self.gnss_sub = rospy.Subscriber(topic, Inspva, callback_with_gnss_reading)
             else:
-                #assume it's septentrio
+                #assume it's septentrio, we are on e4 vehicle
                 if type is not None and (type is not INSNavGeod and type is not GNSSReading):
                     raise ValueError("GEMHardwareInterface GEM e4 only supports INSNavGeod/GNSSReading for GNSS")
                 if type is INSNavGeod:
                     self.gnss_sub = rospy.Subscriber(topic, INSNavGeod, callback)
                 else:
+                    #type is GNSSReading, topic INSNavGeod is present 
+                    #a nested callback is overlayed on original callback
                     def callback_with_gnss_reading(msg: INSNavGeod):
                         pose = ObjectPose(ObjectFrameEnum.GLOBAL,
                                     x=msg.longitude,

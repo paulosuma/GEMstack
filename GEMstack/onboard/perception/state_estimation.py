@@ -16,8 +16,13 @@ class GNSSStateEstimator(Component):
     def __init__(self, vehicle_interface : GEMInterface):
         self.vehicle_interface = vehicle_interface
         if 'gnss' not in vehicle_interface.sensors():
+            #Add holonomic constraint and IMU estimation
+            #TODO, test if this is for physically uninstalled gnss condition
+            #Or indoor unfixed satellite?
             raise RuntimeError("GNSS sensor not available")
-        vehicle_interface.subscribe_sensor('gnss',self.c,ObjectPose)
+        
+        #add gnss_callback
+        vehicle_interface.subscribe_sensor('gnss',self.gnss_callback,ObjectPose)
         self.gnss_pose = None
         self.location = settings.get('vehicle.calibration.gnss_location')[:2]
         self.yaw_offset = settings.get('vehicle.calibration.gnss_yaw')
@@ -42,7 +47,8 @@ class GNSSStateEstimator(Component):
         if self.gnss_pose is None:
             return
         #TODO: figure out what this status means
-        #print("INS status",self.status)
+        print("INS status",self.status) #Should be 'ok'
+
 
         # vehicle gnss heading (yaw) in radians
         # vehicle x, y position in fixed local frame, in meters
@@ -56,11 +62,15 @@ class GNSSStateEstimator(Component):
                                       y=center_xyhead[1],
                                       yaw=center_xyhead[2])
 
+        #readings belong to GEMVehicleReading class
+        #combine speed, steering, left/right signal etc with vehicle_pose_global
         readings = self.vehicle_interface.get_reading()
+
+        #raw is VehicleState type
         raw = readings.to_state(vehicle_pose_global)
 
         #filtering speed
-        filt_vel     = self.speed_filter(raw.v)
+        filt_vel = self.speed_filter(raw.v)
         raw.v = filt_vel
         return raw
         
