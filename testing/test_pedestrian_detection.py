@@ -38,6 +38,7 @@ parser.add_argument('--test_target', '-t', type=str, required=False,
 parser.add_argument('--output_dir', '-o', type=str, default='save')
 parser.add_argument('--src_dir', '-s', type=str, default='./data/gt')
 parser.add_argument('--data_idx', '-i', type=int, default=1)
+parser.add_argument('--write_all', '-w', type=int, default=0)
 
 args = parser.parse_args()
 
@@ -353,7 +354,7 @@ class TestHelper:
         # klampt_vis(self.zed_image, point_cloud_lidar, self.depth)
         
     def test_track_agents(self, framenum=80):
-        for i in range(1, framenum):
+        for i in range(1, framenum + 1):
             lidar_fn = os.path.join(args.src_dir, f'lidar{i}.npz')
             image_fn = os.path.join(args.src_dir, f'color{i}.png')
             depth_fn = os.path.join(args.src_dir, f'depth{i}.tif')
@@ -425,12 +426,12 @@ if __name__=='__main__':
                  [0,       0 ,             0 ,      1]]
     
     gem_interface = GEMInterface()
-    ped_detector = PedestrianDetector(gem_interface, extrinsic)
+    ped_detector = PedestrianDetector(gem_interface, extrinsic, write_all=(args.write_all > 0), detection_file_name="GEMstack/onboard/prediction/tracking_parallel.txt")
     
     
     test_helper = TestHelper(ped_detector, None, None, None)
     
-    test_helper.test_track_agents(framenum=15)
+    test_helper.test_track_agents(framenum=42)
 
     # load data
     # all_data = []

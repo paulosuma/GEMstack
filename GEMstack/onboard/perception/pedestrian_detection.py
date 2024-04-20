@@ -82,7 +82,7 @@ def filter_lidar_by_range(point_cloud, xrange: Tuple[float, float], yrange: Tupl
 
 class PedestrianDetector(Component):
     """Detects and tracks pedestrians."""
-    def __init__(self,vehicle_interface : GEMInterface, extrinsic=None, tracker_config="GEMstack/onboard/perception/temp_config.py", detection_file_name="GEMstack/onboard/prediction/tracking_results.txt"):
+    def __init__(self,vehicle_interface : GEMInterface, extrinsic=None, tracker_config="GEMstack/onboard/perception/temp_config.py", detection_file_name="GEMstack/onboard/prediction/tracking_results.txt", write_all=False):
         self.vehicle_interface = vehicle_interface
         # self.detector = YOLO(settings.get('pedestrian_detection.model'))
         
@@ -90,7 +90,10 @@ class PedestrianDetector(Component):
         self.detection_file_name = detection_file_name
         # f = open(self.detection_file_name, 'w')
         # f.close()
-        
+        self.write_all = write_all
+        if write_all:
+            f = open(self.detection_file_name, 'w')
+            f.close()
         self.tracking_results = {}
         self.detector = YOLO('GEMstack/knowledge/detection/yolov8n.pt')
         self.camera_info_sub = None
@@ -160,9 +163,10 @@ class PedestrianDetector(Component):
                 self.tracking_results[self.current_frame].append(agent_frame_data)
             else:
                 self.tracking_results[self.current_frame] = [agent_frame_data]
-                       
-        self.tracking_results.pop(self.current_frame - 8, None)
-        print("Frame: ", self.current_frame - 8)
+        # Keep more than 8 frames
+        if not self.write_all:
+            self.tracking_results.pop(self.current_frame - 8, None)
+
         self.current_frame += 1
         
         
@@ -171,9 +175,10 @@ class PedestrianDetector(Component):
             for frame in sorted(self.tracking_results):
                 for line in sorted(self.tracking_results[frame]):
                     f.write(line)
-            for frame in range(self.current_frame, self.current_frame + 12):
-                dummy_frame = f"{float(frame)} 1.0 Pedestrian -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 0.0 -1.0 0.0 -1.0\n"
-                f.write(dummy_frame)
+            if not self.write_all:
+                for frame in range(self.current_frame, self.current_frame + 12):
+                    dummy_frame = f"{float(frame)} 1.0 Pedestrian -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 0.0 -1.0 0.0 -1.0\n"
+                    f.write(dummy_frame)
             
             
     def rate(self):
