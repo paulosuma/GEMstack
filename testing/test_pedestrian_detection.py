@@ -426,12 +426,12 @@ if __name__=='__main__':
                  [0,       0 ,             0 ,      1]]
     
     gem_interface = GEMInterface()
-    ped_detector = PedestrianDetector(gem_interface, extrinsic, write_all=(args.write_all > 0), detection_file_name="GEMstack/onboard/prediction/tracking_parallel.txt")
+    ped_detector = PedestrianDetector(gem_interface, extrinsic, write_all=(args.write_all > 0), detection_file_name="GEMstack/onboard/prediction/tracking_moving_car1_ds.txt")
     
     
     test_helper = TestHelper(ped_detector, None, None, None)
     
-    test_helper.test_track_agents(framenum=42)
+    test_helper.test_track_agents(framenum=31)
 
     # load data
     # all_data = []
