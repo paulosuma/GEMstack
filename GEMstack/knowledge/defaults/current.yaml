@@ -27,6 +27,8 @@ perception:
         tolerance_factor: 1  # to make agent detection tolerant to errors in calibration
     agent_detection:
         model: !relative_path '../detection/yolov8n.pt'
+    sign_light_detection:
+        model: !relative_path '../detection/best.pt'
     
 
 #configure the simulator, if using
