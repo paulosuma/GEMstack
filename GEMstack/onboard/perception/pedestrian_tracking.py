@@ -1,6 +1,4 @@
 from ...state import (
-    AllState,
-    VehicleState,
     ObjectPose,
     ObjectFrameEnum,
     AgentState,
@@ -22,9 +20,7 @@ except ImportError:
     pass
 
 import numpy as np
-from typing import Dict, Tuple, List
-import time
-from numpy.linalg import inv
+from typing import Dict, List
 from .kalman_tracker import KalmanTracker  # Behavior Prediction Team
 
 
@@ -125,7 +121,11 @@ class PedestrianTracker(Component):
                 outline=None,
             )
         self.update_track_history(tracking_results)
-        self.matches = matches
+
+        
+        if self.test:
+            return tracking_results, matches
+
 
     def update_track_history(
         self, ag_dict: Dict[int, AgentState]
@@ -139,30 +139,44 @@ class PedestrianTracker(Component):
                 self.tracking_results[self.current_frame].append(agent_frame_data)
             else:
                 self.tracking_results[self.current_frame] = [agent_frame_data]
-        # Keep more than 8 frames
+        # Do not keep more than 8 frames
         if not self.write_all:
+            # Remove 8th oldest frame
             self.tracking_results.pop(self.current_frame - 8, None)
-
+        
         self.current_frame += 1
 
     # TODO: Write Docstring
     def output_tracking_results(self):  # Behavior Prediction
         tracking_frames = []
 
+        recent_pids = {}
+        
+        # Dummy frames should be written for these pids
+        valid_pids = set()
         with open(self.detection_file_name, "w") as f:
             for frame in sorted(self.tracking_results):
                 for line in sorted(self.tracking_results[frame]):
+                    
+                    # Check whether a dummy frame should be written for this pid
+                    curr_pid = line.split(" ")[1]
+                    pid_seen_count = recent_pids.get(curr_pid, 0) + 1
+                    if pid_seen_count >= 8:
+                        valid_pids.add(curr_pid)
+                        
+                    recent_pids[curr_pid] = pid_seen_count
+                        
+                        
                     if self.test:
                         f.write(line)
                     tracking_frames.append(line)
             if not self.write_all:
+                # Adding dummy frames, because we are only writing the recent frames
                 for frame in range(self.current_frame, self.current_frame + 12):
-                    dummy_frame = f"{float(frame)} 1.0 Pedestrian -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 0.0 -1.0 0.0 -1.0\n"
-                    if self.test:
-                        f.write(dummy_frame)
-                    tracking_frames.append(dummy_frame)
-
-        if self.test:
-            return tracking_frames, self.matches
+                    for rpid in valid_pids:
+                        dummy_frame = f"{float(frame)} {float(rpid)} Pedestrian -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 0.0 -1.0 0.0 -1.0\n"
+                        if self.test:
+                            f.write(dummy_frame)
+                        tracking_frames.append(dummy_frame)
 
         return tracking_frames
