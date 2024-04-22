@@ -46,8 +46,8 @@ class Detector(Component):
         # use lidar_callback whenever 'top_lidar' gets a reading, and it expects numpy arrays
         self.vehicle_interface.subscribe_sensor('top_lidar', self.lidar_callback, np.ndarray)
         
-        # subscribe to the Zed CameraInfo topic
-        self.camera_info_sub = rospy.Subscriber('/zed2/zed_node/rgb/camera_info', CameraInfo, self.camera_info_callback)
+        # subscribe to the CameraInfo topic
+        self.camera_info_sub = rospy.Subscriber('/oak/rgb/camera_info', CameraInfo, self.camera_info_callback)
     
     def image_callback(self, image : cv2.Mat):
         self.camera_image = image
