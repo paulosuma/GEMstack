@@ -1,4 +1,4 @@
-#needed to import GEMstack from top level directory
+# needed to import GEMstack from top level directory
 import sys
 import os
 import cv2
@@ -6,6 +6,7 @@ sys.path.append(os.getcwd())
 abs_path = os.path.abspath(os.path.dirname(__file__))
 
 from GEMstack.onboard.perception.pedestrian_detection import PedestrianDetector
+from GEMstack.onboard.perception.pedestrian_tracking import PedestrianTracker
 from GEMstack.onboard.interface.gem import GEMInterface
 
 
@@ -26,16 +27,12 @@ args = parser.parse_args()
 
 OUTPUT_DIR = args.output_dir
 
-    
 
 class TestHelper:
-    def __init__(self, ped_detector, point_cloud, zed_image, depth):
+    def __init__(self, ped_detector, ped_tracker):
         self.ped_detector = ped_detector
         self.yolo_detector = ped_detector.detector
-        self.point_cloud = point_cloud
-        self.zed_image = zed_image
-        self.depth = depth        
-
+        self.ped_tracker = ped_tracker
    
     def test_track_agents(self, framenum=80):
         for i in range(1, framenum + 1):
@@ -55,7 +52,9 @@ class TestHelper:
             
             detected_pedestrians = [x for x in detected_agents if x.type==AgentEnum.PEDESTRIAN]
             
-            current_agent_states, matches = self.ped_detector.track_agents(None,detected_agents, test=True)
+            self.ped_tracker.track_agents(detected_agents)
+            tracked_frames, matches = self.ped_tracker.output_tracking_results()
+            
             rev_matches = {v:k for k,v in matches.items()}
 
             
@@ -71,7 +70,7 @@ class TestHelper:
                     pedestrian_boxes.append(bbox)
 
                     pid = rev_matches[detected_ped_id]
-                    ag_state = current_agent_states[pid]
+                    ag_state = tracked_frames[pid]
         
                     # draw bbox
                     x,y,w,h = bbox
@@ -108,14 +107,19 @@ if __name__=='__main__':
                  [-0.0675, -0.00499, -0.9977, -0.03123], 
                  [0.99771, -0.00554, -0.06743, -0.7284],
                  [0,       0 ,             0 ,      1]]
-    
+
     gem_interface = GEMInterface()
     ped_detector = PedestrianDetector(gem_interface, extrinsic, write_all=(args.write_all > 0), detection_file_name="GEMstack/onboard/prediction/tracking_moving_car1_ds.txt")
     
-    
-    test_helper = TestHelper(ped_detector, None, None, None)
-    
+    # Create PedTracker
+    ped_tracker = PedestrianTracker(
+        detection_file_name="GEMstack/onboard/prediction/tracking_moving_car1_ds.txt",
+        test=True,
+        write_all=(args.write_all > 0)
+    )
+
+    test_helper = TestHelper(ped_detector, ped_tracker)
+
     test_helper.test_track_agents(framenum=31)
-    
+
     print ('\nDone!')
-    

@@ -83,6 +83,7 @@ def filter_lidar_by_range(point_cloud, xrange: Tuple[float, float], yrange: Tupl
 class PedestrianDetector(Component):
     """Detects and tracks pedestrians."""
     def __init__(self,vehicle_interface : GEMInterface, extrinsic=None, tracker_config="GEMstack/onboard/perception/temp_config.py", detection_file_name="GEMstack/onboard/prediction/tracking_results.txt", write_all=False):
+        # TODO: Once we verify pedestrian_tracker.py -- delete the following lines
         self.current_frame = 0 # Behavior Prediction Team
         self.detection_file_name = detection_file_name # Behavior Prediction Team
         self.write_all = write_all # Behavior Prediction Team
@@ -91,7 +92,7 @@ class PedestrianDetector(Component):
             f.close() # Behavior Prediction Team
         self.tracking_results = {} # Behavior Prediction Team
         self.kalman_tracker = KalmanTracker(config_file_path=tracker_config)
-        
+
         # State Estimation
         self.vehicle_interface = vehicle_interface
         # self.detector = YOLO(settings.get('pedestrian_detection.model'))
@@ -120,7 +121,7 @@ class PedestrianDetector(Component):
         self.pedestrian_counter = 0
         self.last_agent_states = {}
         self.previous_agents = {} 
-    
+
         # init transformation parameters
         if extrinsic is None:
             extrinsic = [[-0.00519, -0.99997, 0.005352, 0.1627], 
@@ -132,13 +133,13 @@ class PedestrianDetector(Component):
         # extrinsic_fn = 'GEMstack/knowledge/calibration/zed2lidar.txt'
         # extrinsic = np.loadtxt(extrinsic_fn)
         # extrinsic = inv(extrinsic)
-        
+
         self.extrinsic = np.array(extrinsic)
         intrinsic = [684.8333129882812, 0.0, 573.37109375, 0.0, 684.6096801757812, 363.700927734375, 0.0, 0.0, 1.0] # e4
         # intrinsic = [527.5779418945312, 0.0, 616.2459716796875, 0.0, 527.5779418945312, 359.2155456542969, 0.0, 0.0, 1.0] #e2
         intrinsic = np.array(intrinsic).reshape((3, 3))
         self.intrinsic = np.concatenate([intrinsic, np.zeros((3, 1))], axis=1)
-        
+
         T_lidar2_Gem = np.loadtxt("GEMstack/knowledge/calibration/gem_e4_lidar2vehicle.txt")
         self.T_lidar2_Gem = np.asarray(T_lidar2_Gem)
 
@@ -146,8 +147,8 @@ class PedestrianDetector(Component):
         # Hardcode the roi area for agents
         self.xrange = (2.3959036, 5.8143473)
         self.yrange = (-2.0247698, 4.0374074)
-    
-    # TODO: Write docstring
+
+    # TODO: Verify Ped Tracker and delete from Ped Detector
     # ag_dict -> dictionary of ped_id to agent_state
     # write_frame_to -> writes all detected agents at self.current_frame
     # to an output file in the eth dataset format
@@ -167,8 +168,8 @@ class PedestrianDetector(Component):
             self.tracking_results.pop(self.current_frame - 8, None)
 
         self.current_frame += 1
-        
-    # TODO: Write Docstring
+
+    # TODO: Verify Ped Tracker and delete from Ped Detector
     def write_recent_frames(self): # Behavior Prediction
         with open(self.detection_file_name, 'w') as f:
             for frame in sorted(self.tracking_results):
@@ -178,30 +179,28 @@ class PedestrianDetector(Component):
                 for frame in range(self.current_frame, self.current_frame + 12):
                     dummy_frame = f"{float(frame)} 1.0 Pedestrian -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 0.0 -1.0 0.0 -1.0\n"
                     f.write(dummy_frame)
-            
-            
+
     def rate(self):
         return 4.0
-    
+
     def state_inputs(self):
         return ['vehicle']
-    
+
     def state_outputs(self):
-        return ['agents']
-    
+        return ['detected_agents']
+
     def test_set_data(self, zed_image, point_cloud, camera_info='dummy'):
         self.zed_image = zed_image
         self.point_cloud = point_cloud
         self.camera_info = camera_info
 
     def initialize(self):
-        #tell the vehicle to use image_callback whenever 'front_camera' gets a reading, and it expects images of type cv2.Mat
+        # tell the vehicle to use image_callback whenever 'front_camera' gets a reading, and it expects images of type cv2.Mat
         self.vehicle_interface.subscribe_sensor('front_camera',self.image_callback,cv2.Mat)
-        #tell the vehicle to use lidar_callback whenever 'top_lidar' gets a reading, and it expects numpy arrays
+        # tell the vehicle to use lidar_callback whenever 'top_lidar' gets a reading, and it expects numpy arrays
         self.vehicle_interface.subscribe_sensor('top_lidar',self.lidar_callback,np.ndarray)
-        #subscribe to the Zed CameraInfo topic
+        # subscribe to the Zed CameraInfo topic
         self.camera_info_sub = rospy.Subscriber("/oak/rgb/camera_info", CameraInfo, self.camera_info_callback)
-
 
     def image_callback(self, image : cv2.Mat):
         self.zed_image = image
@@ -211,31 +210,34 @@ class PedestrianDetector(Component):
 
     def lidar_callback(self, point_cloud: np.ndarray):
         self.point_cloud = point_cloud
-    
+
     def update(self, vehicle : VehicleState) -> Dict[str,AgentState]:
         if self.zed_image is None:
-            #no image data yet
+            # no image data yet
             return {}
         if self.point_cloud is None:
-            #no lidar data yet
+            # no lidar data yet
             return {}
         if self.camera_info is None:
-            #no camera info yet
+            # no camera info yet
             return {}
-        
-        #debugging
-        #self.save_data()
 
-        t1 = time.time()
-        detected_agents = self.detect_agents()
+        # debugging
+        # self.save_data()
 
-        t2 = time.time()
-        current_agent_states = self.track_agents(vehicle,detected_agents)
-        t3 = time.time()
-        print("Detection time",t2-t1,", shape estimation and tracking time",t3-t2)
+        # t1 = time.time()
+        detected_agents = self.detect_agents()  # TODO: to ask SE to output detected_agents only
 
-        self.last_agent_states = current_agent_states
-        return current_agent_states
+        return detected_agents
+
+        # TODO: ask SE to remove
+        # t2 = time.time()
+        # current_agent_states = self.track_agents(vehicle,detected_agents)
+        # t3 = time.time()
+        # print("Detection time",t2-t1,", shape estimation and tracking time",t3-t2)
+
+        # self.last_agent_states = current_agent_states
+        # return current_agent_states
 
     def box_to_agent(self, box, point_cloud_image, point_cloud_image_world):
         """Creates a 3D agent state from an (x,y,w,h) bounding box.
@@ -244,16 +246,16 @@ class PedestrianDetector(Component):
         point cloud, and the calibrated camera / lidar poses to get a good
         estimate of the pedestrian's pose and dimensions.
         """
-        
+
         print ('Detect a pedestrian!')
-        
+
         # get the idxs of point cloud that belongs to the agent
         x,y,w,h = box
         xmin, xmax = x - w/2, x + w/2
         ymin, ymax = y - h/2, y + h/2
-        
+
         print ('box xywh:', box)
-        
+
         # enlarge bbox in case inaccuracy calibration
         enlarge_factor = 3
         xmin *= enlarge_factor
@@ -265,7 +267,7 @@ class PedestrianDetector(Component):
 
         # idxs = np.where((point_cloud_image[:, 0] > xmin) & (point_cloud_image[:, 0] < xmax) &
         #                 (point_cloud_image[:, 1] > ymin) & (point_cloud_image[:, 1] < ymax) )
-        
+
         # agent_image_pc = point_cloud_image[idxs]
         # agent_world_pc = point_cloud_image_world[idxs]
         # print ('# of agent_world_pc:', len(agent_world_pc))
@@ -281,36 +283,35 @@ class PedestrianDetector(Component):
 
         #########################################################################################################
         # Definition of ObjectPose and dimensions:
-        # 
+        #
         #   Copy from the comment of class PhysicalObject:
         #     The origin is at the object's center in the x-y plane but at the bottom
         #     in the z axis.  I.e., if l,w,h are the dimensions, then the object is
         #     contained in a bounding box [-l/2,l/2] x [-w/2,w/2] x [0,h].
-        #   
+        #
         #   Copy from the comment of class ObjectFrameEnum(Enum):
         #     ObjectFrameEnum.CURRENT: position / yaw in m / radians relative to current pose of vehicle
         #########################################################################################################
-        
+
         # Specify ObjectPose. Note that The pose's yaw, pitch, and roll are assumed to be 0 for simplicity.
         x, y, _ = closest_point_cloud
         pose = ObjectPose(t=0, x=x, y=y, z=0, yaw=0, pitch=0, roll=0, frame=ObjectFrameEnum.CURRENT)
         print ('pose xy:', x, y)
-        
+
         # Specify AgentState.
         l = np.max(agent_world_pc[:, 0]) - np.min(agent_world_pc[:, 0])
         w = np.max(agent_world_pc[:, 1]) - np.min(agent_world_pc[:, 1])
         h = np.max(agent_world_pc[:, 2]) - np.min(agent_world_pc[:, 2])
         # dims = (2, 2, 1.7)
         dims = (w, h, l) 
-        
+
         return AgentState(pose=pose,dimensions=dims,outline=None,type=AgentEnum.PEDESTRIAN,activity=AgentActivityEnum.MOVING,velocity=(0,0,0),yaw_rate=0)
 
-    
-    # Behavior Prediction added test argument to return matchings    
+    # Behavior Prediction added test argument to return matchings
     def detect_agents(self, test=False):
         detection_result = self.detector(self.zed_image,verbose=False)
-        
-        #TODO: create boxes from detection result
+
+        # TODO: create boxes from detection result
         pedestrian_boxes = []
         car_boxes = [] # add car objects
         stop_boxes = [] # add stop sign
@@ -319,21 +320,21 @@ class PedestrianDetector(Component):
             if class_id == 0: # class 0 stands for pedestrian
                 bbox = box.xywh[0].tolist()
                 pedestrian_boxes.append(bbox)
-            
+
             if class_id == 2: # class 2 stands for car
                 bbox = box.xywh[0].tolist()
                 car_boxes.append(bbox)
-            
+
             if class_id == 11: # class 11 stands for stop sign
                 bbox = box.xywh[0].tolist()
                 stop_boxes.append(bbox)
-    
+
         # Only keep lidar point cloud that lies in roi area for agents
         point_cloud_lidar = filter_lidar_by_range(self.point_cloud, self.xrange, self.yrange)
-        
+
         # Tansfer lidar point cloud to camera frame
         point_cloud_image = lidar_to_image(point_cloud_lidar, self.extrinsic, self.intrinsic)
-        
+
         # Tansfer lidar point cloud to vehicle frame
         point_cloud_image_world = lidar_to_vehicle(point_cloud_lidar, self.T_lidar2_Gem)
 
@@ -343,12 +344,12 @@ class PedestrianDetector(Component):
             agent = self.box_to_agent(b, point_cloud_image, point_cloud_image_world)
             if agent is not None:
                 detected_agents.append(agent)
-        
+
         for i,b in enumerate(car_boxes):
             agent = self.box_to_agent(b, point_cloud_image, point_cloud_image_world)
             if agent is not None:
                 detected_agents.append(agent)
-        
+
         for i,b in enumerate(stop_boxes):
             agent = self.box_to_agent(b, point_cloud_image, point_cloud_image_world)
             if agent is not None:
@@ -356,7 +357,7 @@ class PedestrianDetector(Component):
         if test: # Behavior Prediction
             return detected_agents, detection_result 
         return detected_agents
-        
+
     def estimate_velocity(self, prev_pose, current_pose) -> tuple:
         """Estimate the velocity of an agent based on previous and current positions."""
         delta_time = 1.0  
@@ -364,17 +365,18 @@ class PedestrianDetector(Component):
         velocity_y = (current_pose.y -prev_pose.y) / delta_time
         velocity_z = (current_pose.z -prev_pose.z) / delta_time
         return (velocity_x, velocity_y, velocity_z)
-    
+
     def overlaps(self, pose1, pose2) -> bool:
         """Check if two agents overlap (simplified check)."""
         distance_threshold = 0.5
         distance = ((pose1.x - pose2.x) ** 2 + (pose1.y - pose2.y) ** 2 + (pose1.z - pose2.z) ** 2) ** 0.5
         return distance < distance_threshold
 
+    # TODO: Verify Ped Tracker and delete from Ped Detector
     # Behavior Prediction added bool to choose kalman tracking
     def track_agents(self, vehicle : VehicleState, detected_agents : List[AgentState], test=False, kalman=True):
         """Given a list of detected agents, updates the state of the agents."""
-        
+
         if kalman:
             detections = []
             for agent in detected_agents:
@@ -382,7 +384,7 @@ class PedestrianDetector(Component):
                     x,y,z = agent.pose.x, agent.pose.y, agent.pose.z
                     w,h,l = agent.dimensions
                     detections.append(np.array([x,y,w,l]))
-            
+
             kalman_agent_states, matches = self.kalman_tracker.update_pedestrian_tracking(detections)
             results = {}
             for pid in kalman_agent_states:
@@ -396,10 +398,10 @@ class PedestrianDetector(Component):
 
             if test:
                 return results, matches
-            
+
             return results
         else:
-            # TODO: keep track of which pedestrians were detected before u 
+            # TODO: keep track of which pedestrians were detected before u
             # results = {}
 
             current_frame_results = {}
@@ -409,11 +411,11 @@ class PedestrianDetector(Component):
                 assigned = False  # Flag to check if the current agent is assigned to an existing track
 
                 for ped_id, prev_agent in self.previous_agents.items():
-                    
+
                     # Car moves between frames. So have to transform the previous agent's pose
                     # to align with the current vehicle's pose.
                     # prev_agent = prev_agent.to_frame(ObjectFrameEnum.CURRENT, vehicle.pose)
-                    
+
                     if self.overlaps(current_agent.pose, prev_agent.pose):
                         # If the current agent overlaps with a previous agent, it's the same pedestrian
                         velocity = self.estimate_velocity(prev_agent.pose, current_agent.pose)
@@ -467,8 +469,8 @@ class PedestrianDetector(Component):
             with open(prefix+'zed_camera_info.pkl','rb') as f:
                 self.camera_info = pickle.load(f)
         except ModuleNotFoundError:
-            #ros not found?
+            # ros not found?
             from collections import namedtuple
             CameraInfo = namedtuple('CameraInfo',['width','height','P'])
-            #TODO: these are guessed parameters
+            # TODO: these are guessed parameters
             self.camera_info = CameraInfo(width=1280,height=720,P=[560.0,0,640.0,0,  0,560.0,360,0,  0,0,1,0])

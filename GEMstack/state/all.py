@@ -11,6 +11,7 @@ from .route import Route
 from .trajectory import Trajectory
 from .predicates import PredicateValues
 from typing import Dict,List,Optional
+from state import AgentState
 
 @dataclass
 @register
@@ -46,6 +47,10 @@ class AllState(SceneState):
     intent_update_time : float = 0
     route_update_time : float = 0
     trajectory_update_time : float = 0
+
+    # pedestrian detection and tracking items
+    detected_agents : List[AgentState] = []
+    tracking_frames : List[str] = []
 
     @staticmethod
     def zero():
