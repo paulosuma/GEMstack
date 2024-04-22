@@ -23,8 +23,8 @@ control:
 
 perception:
     rate: 5.0
-    object_detection:
-        tolerance_factor: 1  # to make agent detection tolerant to errors in calibration
+    # object_detection:
+    #     tolerance_factor: 1  # to make agent detection tolerant to errors in calibration
     agent_detection:
         model: !relative_path '../detection/yolov8n.pt'
     sign_light_detection:
