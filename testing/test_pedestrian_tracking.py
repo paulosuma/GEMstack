@@ -22,6 +22,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--output_dir', '-o', type=str, default='save')
 parser.add_argument('--src_dir', '-s', type=str, default='./data/gt')
 parser.add_argument('--write_all', '-w', type=int, default=0)
+parser.add_argument('--tracking_data', '-d', type=str, default='GEMstack/onboard/prediction/written_frames.txt')
 
 args = parser.parse_args()
 
@@ -52,8 +53,10 @@ class TestHelper:
             
             detected_pedestrians = [x for x in detected_agents if x.type==AgentEnum.PEDESTRIAN]
             
-            self.ped_tracker.track_agents(detected_agents)
-            tracked_frames, matches = self.ped_tracker.output_tracking_results()
+            tracking_results, matches = self.ped_tracker.track_agents(detected_agents)
+            
+            # Write recent frames to file or state variable
+            self.ped_tracker.output_tracking_results()
             
             rev_matches = {v:k for k,v in matches.items()}
 
@@ -70,7 +73,7 @@ class TestHelper:
                     pedestrian_boxes.append(bbox)
 
                     pid = rev_matches[detected_ped_id]
-                    ag_state = tracked_frames[pid]
+                    ag_state = tracking_results[pid]
         
                     # draw bbox
                     x,y,w,h = bbox
@@ -99,7 +102,7 @@ class TestHelper:
             print ('Output image with bbox result:', output_path)
             cv2.imwrite(output_path, bbox_image)
             
-            self.ped_detector.write_recent_frames()
+
 
 
 if __name__=='__main__':
@@ -109,17 +112,17 @@ if __name__=='__main__':
                  [0,       0 ,             0 ,      1]]
 
     gem_interface = GEMInterface()
-    ped_detector = PedestrianDetector(gem_interface, extrinsic, write_all=(args.write_all > 0), detection_file_name="GEMstack/onboard/prediction/tracking_moving_car1_ds.txt")
+    ped_detector = PedestrianDetector(gem_interface, extrinsic)
     
     # Create PedTracker
     ped_tracker = PedestrianTracker(
-        detection_file_name="GEMstack/onboard/prediction/tracking_moving_car1_ds.txt",
         test=True,
-        write_all=(args.write_all > 0)
+        write_all=(args.write_all > 0),
+        detection_file_name=args.tracking_data
     )
 
     test_helper = TestHelper(ped_detector, ped_tracker)
 
-    test_helper.test_track_agents(framenum=31)
+    test_helper.test_track_agents(framenum=100)
 
     print ('\nDone!')
