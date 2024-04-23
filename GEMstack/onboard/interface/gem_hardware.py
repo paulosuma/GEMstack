@@ -150,6 +150,10 @@ class GEMHardwareInterface(GEMInterface):
         return self.last_reading
 
     def subscribe_sensor(self, name, callback, type = None):
+
+        #Wait for Jsuan's code on IMU
+        # if name =='imu':
+        #     topic = self.ros_sensor_topics[name]
         if name == 'gnss':
             topic = self.ros_sensor_topics[name]
             #re-write this part, we don't have inspva GNSS device on gem e4.
@@ -182,6 +186,7 @@ class GEMHardwareInterface(GEMInterface):
                     #a nested callback is overlayed on original callback
                     def callback_with_gnss_reading(msg: INSNavGeod):
                         pose = ObjectPose(ObjectFrameEnum.GLOBAL,
+                                    t = 3,  #TODO, add actual timestamp
                                     x=msg.longitude,
                                     y=msg.latitude,
                                     z=msg.height,
@@ -190,7 +195,7 @@ class GEMHardwareInterface(GEMInterface):
                                     pitch=math.radians(msg.pitch),
                                     )
                         callback(GNSSReading(pose,'error' if msg.error else 'ok'))
-                    self.gnss_sub = rospy.Subscriber(topic, Inspva, callback_with_gnss_reading)
+                    self.gnss_sub = rospy.Subscriber(topic, INSNavGeod, callback_with_gnss_reading)
         elif name == 'top_lidar':
             topic = self.ros_sensor_topics[name]
             if type is not None and (type is not PointCloud2 and type is not np.ndarray):
