@@ -270,8 +270,8 @@ class Roadgraph:
         return replace(self, frame = frame, curves = newcurves, lanes = newlanes, regions = newregions, signs = newsigns, static_obstacles = newstatic_obstacles, connections=newconnections)
 
     def get_current_lane(self, state : VehicleState):
-        vehicle_x = state.x
-        vehicle_y = state.y
+        vehicle_x = state.pose.x
+        vehicle_y = state.pose.y
 
         closest_lane = None
         smallest_d = float('inf')
@@ -285,38 +285,42 @@ class Roadgraph:
                 right = lane.right.segments
 
                 center = []
-                for l_seg,r_seg in zip(left,right):
-                    this_point = [(l_seg[0] + r_seg[0]) / 2, (l_seg[1] + r_seg[1]) / 2]
-                    center.append(this_point)
+                for l_seg, r_seg in zip(left, right):
+                    center_seg = []
+                    for lp, rp in zip(l_seg, r_seg):
+                        this_point = ((lp[0] + rp[0]) / 2, (lp[1] + rp[1]) / 2, (lp[2] + rp[2]) / 2)
+                        center_seg.append(this_point)
+                    center.append(center_seg)
+                
+                lane.center = RoadgraphCurve(type=RoadgraphCurveEnum.LANE_BOUNDARY, segments=center, crossable=True)
 
             else: 
-                center = lane.center
+                center = lane.center.segments
 
-            for i in range(len(center)-1):
-                x1,y1 = (center[i][0],center[i][1])
-                x2,y2 = (center[i+1][0],center[i+1][1])
+            for seg in center:
+                for i in range(len(seg)-1):
+                    x1,y1 = seg[i][0], seg[i][1]
+                    x2,y2 = seg[i+1][0], seg[i+1][1]
 
-                slope = (y2 - y1) / (x2 - x1)
-                intercept = y1 - slope * x1
-                A = -slope
-                B = 1
-                C = -intercept
+                    slope = (y2 - y1) / (x2 - x1)
+                    intercept = y1 - slope * x1
+                    A = -slope
+                    B = 1
+                    C = -intercept
 
-                d = (abs(A*vehicle_x + B*vehicle_y + C))/(np.sqrt(A**2 + B**2))
+                    d = (abs(A*vehicle_x + B*vehicle_y + C))/(np.sqrt(A**2 + B**2))
 
-                if d < smallest_d:
-                    smallest_d = d
-                    closest_lane = lane_label
+                    # TODO what if the intersection is outside of the bounds of the line segment?
+
+                    if d < smallest_d:
+                        smallest_d = d
+                        closest_lane = lane_label
+                        break
+                    
+                if closest_lane == lane_label:
+                    break
 
         return closest_lane
-
-
-
-
-                
-
-
-
 
 
 class RoadgraphNetwork(Roadgraph):
