@@ -149,14 +149,14 @@ class PedestrianTrajPrediction(Component):
 
         # read data from model's output file
         # self.convert_data_from_model_output(file)
-        self.convert_data_from_model_output(sample_model_3D, frame)
 
         # output frame 7/2.5 -> time  + cur_time = detection_time
 
         # convert data to AgentState objects make sure to convert the frames to time(which will add to the AgentPose object)
+        agent_list = self.convert_data_from_model_output(sample_model_3D, frame)
         
         # return data
-        pass
+        return agent_list
         
     def cleanup(self):
         # clean up subprocess which runs the model.
