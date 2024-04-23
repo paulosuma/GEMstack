@@ -130,17 +130,24 @@ class PedestrianTrajPrediction(Component):
 
     # takes in the agent states of the past 8 frames and returns the predicted trajectories of the agents in the next 12 frames
     # outputs dictionary where key is the sampler id and value is the list of agent states for the next 12 frames
-    def update(self, past_agent_states : List[str]) -> List[Dict[List[AgentState]]]:
+    # def update(self, past_agent_states : List[str]) -> List[Dict[List[AgentState]]]:
+    # Assuming that past_agent_states is actually a numpy array instead of just a list of strings
+    # past_agent_states.shape: [num_frames_in_model * (peds_in_frame for frame in frames), 17]
+    def update(self, past_agent_states) -> List[Dict[List[AgentState]]]:
         self.cur_time = time.time()
         # parse past_agent states flip the x and y coordinates
-        for state in past_agent_states:
-            # flip 4th and 2nd word in the state string
-            state = state.split()
-            state[2], state[4] = state[4], state[2]
-            state = ' '.join(state)
-            # output to a file
+        # for state in past_agent_states:
+        #     # flip 4th and 2nd word in the state string
+        #     state = state.split()
+        #     state[2], state[4] = state[4], state[2]
+        #     state = ' '.join(state)
+        #     # output to a file
         
-
+        # flip the x- and y-coordinates for each pedestrian in each frame
+        for i in range(past_agent_states.shape[0]):
+            # original x-coordinate: 4th to last coordinate
+            # original y-coordinate: 2nd to last coordinate
+            past_agent_states[i][-2], past_agent_states[i][-4] = past_agent_states[i][-4], past_agent_states[-2]
             
         # write data to file which model will read
 
