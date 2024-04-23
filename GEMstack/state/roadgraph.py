@@ -3,11 +3,13 @@ from ..utils.serialization import register
 from .physical_object import ObjectFrameEnum, convert_point
 from .obstacle import Obstacle
 from .sign import Sign
+from .vehicle import VehicleState
 from enum import Enum
 from collections import defaultdict
 from dataclasses import dataclass, replace, field, asdict
 import itertools
 from typing import List,Tuple,Any,Optional,Dict
+import numpy as np
 
 
 class RoadgraphCurveEnum(Enum):
@@ -266,6 +268,54 @@ class Roadgraph:
             newc = c.to_frame(self.frame,frame,current_pose,start_pose_abs)
             newconnections.append(newc)
         return replace(self, frame = frame, curves = newcurves, lanes = newlanes, regions = newregions, signs = newsigns, static_obstacles = newstatic_obstacles, connections=newconnections)
+
+    def get_current_lane(self, state : VehicleState):
+        vehicle_x = state.x
+        vehicle_y = state.y
+
+        closest_lane = None
+        smallest_d = float('inf')
+        
+        for lane_label in self.lanes:
+            lane = self.lanes[lane_label]
+
+            if lane.center is None:
+                # compute the center line if it's not provided
+                left = lane.left.segments
+                right = lane.right.segments
+
+                center = []
+                for l_seg,r_seg in zip(left,right):
+                    this_point = [(l_seg[0] + r_seg[0]) / 2, (l_seg[1] + r_seg[1]) / 2]
+                    center.append(this_point)
+
+            else: 
+                center = lane.center
+
+            for i in range(len(center)-1):
+                x1,y1 = (center[i][0],center[i][1])
+                x2,y2 = (center[i+1][0],center[i+1][1])
+
+                slope = (y2 - y1) / (x2 - x1)
+                intercept = y1 - slope * x1
+                A = -slope
+                B = 1
+                C = -intercept
+
+                d = (abs(A*vehicle_x + B*vehicle_y + C))/(np.sqrt(A**2 + B**2))
+
+                if d < smallest_d:
+                    smallest_d = d
+                    closest_lane = lane_label
+
+        return closest_lane
+
+
+
+
+                
+
+
 
 
 
