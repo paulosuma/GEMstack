@@ -179,4 +179,4 @@ class PedestrianTracker(Component):
                             f.write(dummy_frame)
                         tracking_frames.append(dummy_frame)
 
-        return tracking_frames
+        return np.array([tracking_frame.split(' ') for tracking_frame in tracking_frames])

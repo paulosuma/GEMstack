@@ -12,6 +12,7 @@ from .trajectory import Trajectory
 from .predicates import PredicateValues
 from typing import Dict,List,Optional
 from .agent import AgentState
+import numpy as np
 
 @dataclass
 @register
@@ -50,7 +51,7 @@ class AllState(SceneState):
 
     # pedestrian detection and tracking items
     detected_agents : List[AgentState] = None
-    tracking_frames : List[str] = None
+    tracking_frames : np.ndarray = None
 
     @staticmethod
     def zero():
