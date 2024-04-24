@@ -101,6 +101,7 @@ class GNSSStateEstimator(Component):
             #TODO, test if this is for physically uninstalled gnss condition
             #Or indoor unfixed satellite?
             raise RuntimeError("GNSS sensor not available")
+        vehicle_interface.subscribe_sensor('gnss', self.gnss_callback, GNSSReading)
         
         #add gnss_callback
         vehicle_interface.subscribe_sensor('gnss',self.gnss_callback,GNSSReading)
@@ -140,10 +141,11 @@ class GNSSStateEstimator(Component):
         center_xyhead = self.gnss_pose.apply_xyhead(gnss_xyhead_inv)
         vehicle_pose_global = replace(self.gnss_pose,
                                       t=self.vehicle_interface.time(),
-                                      x=center_xyhead[0],
+                                      x=center_xyhead[0],   
                                       y=center_xyhead[1],
                                       yaw=center_xyhead[2])
 
+        print('pose X Y yaw', vehicle_pose_global.x, vehicle_pose_global.y, vehicle_pose_global.yaw)
         print('GNSS pose X Y yaw', vehicle_pose_global.x, vehicle_pose_global.y, vehicle_pose_global.yaw)
         #readings belong to GEMVehicleReading class
         #combine speed, steering, left/right signal etc with vehicle_pose_global
