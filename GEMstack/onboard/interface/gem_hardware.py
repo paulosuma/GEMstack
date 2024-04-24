@@ -4,8 +4,9 @@ import math
 
 # ROS Headers
 import rospy
-from std_msgs.msg import String, Bool, Float32, Float64
-from sensor_msgs.msg import Image,PointCloud2
+from std_msgs.msg import String, Bool, Float32, Float64,Header
+from sensor_msgs.msg import Image,PointCloud2,Imu
+
 try:
     from novatel_gps_msgs.msg import NovatelPosition, NovatelXYZ, Inspva
 except ImportError:
@@ -25,6 +26,11 @@ from pacmod_msgs.msg import PositionWithSpeed, PacmodCmd, SystemRptFloat, Vehicl
 import cv2
 import numpy as np
 from ...utils import conversions
+
+@dataclass 
+class IMUReading:
+    pose : ObjectPose
+    status : str
 
 @dataclass 
 class GNSSReading:
@@ -151,9 +157,13 @@ class GEMHardwareInterface(GEMInterface):
 
     def subscribe_sensor(self, name, callback, type = None):
 
-        #Wait for Jsuan's code on IMU
-        # if name =='imu':
-        #     topic = self.ros_sensor_topics[name]
+        #Adapted from Jsuan's code on IMU
+        #Written by Enguang
+        if name =='imu':
+            #manually subscrive to imu topic
+            if type is not IMUReading:
+                raise ValueError("GEMHardwareInterface only supports Septentrio IMU")
+            self.imu_sub = rospy.Subscriber("/septentrio_gnss/imu",Imu, callback)
         if name == 'gnss':
             topic = self.ros_sensor_topics[name]
             #re-write this part, we don't have inspva GNSS device on gem e4.
@@ -183,10 +193,10 @@ class GEMHardwareInterface(GEMInterface):
                     self.gnss_sub = rospy.Subscriber(topic, INSNavGeod, callback)
                 else:
                     #type is GNSSReading, topic INSNavGeod is present 
-                    #a nested callback is overlayed on original callback
+                    #Nested callback is overlayed on original callback
                     def callback_with_gnss_reading(msg: INSNavGeod):
                         pose = ObjectPose(ObjectFrameEnum.GLOBAL,
-                                    t = 3,  #TODO, add actual timestamp
+                                    t = msg.header.to_sec(),  #TODO, add actual timestamp. Fixed
                                     x=msg.longitude,
                                     y=msg.latitude,
                                     z=msg.height,
@@ -195,6 +205,7 @@ class GEMHardwareInterface(GEMInterface):
                                     pitch=math.radians(msg.pitch),
                                     )
                         callback(GNSSReading(pose,'error' if msg.error else 'ok'))
+
                     self.gnss_sub = rospy.Subscriber(topic, INSNavGeod, callback_with_gnss_reading)
         elif name == 'top_lidar':
             topic = self.ros_sensor_topics[name]
