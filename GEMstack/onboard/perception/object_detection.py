@@ -68,8 +68,8 @@ class ObjectDetector():
         
         return PhysicalObject(pose=pose, dimensions=tuple(dimensions))
 
-    def detect_objects(self, yolo_class_ids):
-        detection_result = self.detector(self.camera_image, classes=yolo_class_ids, verbose=False)
+    def detect_objects(self, class_ids):
+        detection_result = self.detector(self.camera_image, classes=class_ids, verbose=False)
         bbox_locations = detection_result[0].boxes.xywh.tolist()
         bbox_classes = detection_result[0].boxes.cls.tolist()
 

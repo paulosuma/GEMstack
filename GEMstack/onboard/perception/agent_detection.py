@@ -30,7 +30,7 @@ class AgentDetector(ObjectDetector):
             '7': AgentEnum.MEDIUM_TRUCK if detected_object.dimensions[2] <= 2.0 else AgentEnum.LARGE_TRUCK
         }
         return AgentState(pose=detected_object.pose, dimensions=detected_object.dimensions, outline=None, 
-                          type=type_dict[str(bbox_cls)], activity=AgentActivityEnum.STOPPED, 
+                          type=type_dict[str(int(bbox_cls))], activity=AgentActivityEnum.STOPPED, 
                           velocity=(0,0,0), yaw_rate=0)
 
     def detect_agents(self):
