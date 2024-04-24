@@ -9,7 +9,7 @@ from ...knowledge.vehicle.geometry import front2steer,steer2front
 from ...mathutils.signal import OnlineLowPassFilter
 from ..interface.gem import GEMInterface
 from ..component import Component
-from ..interface.gem_hardware import GNSSReading,IMUReading
+from ..interface.gem_hardware import GNSSReading
 
 #Adapted from Jsuan's code, written by Enguang
 class IMUStateEstimator(Component):

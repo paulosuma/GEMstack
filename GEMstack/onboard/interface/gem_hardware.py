@@ -200,7 +200,7 @@ class GEMHardwareInterface(GEMInterface):
                     #Nested callback is overlayed on original callback
                     def callback_with_gnss_reading(msg: INSNavGeod):
                         pose = ObjectPose(ObjectFrameEnum.GLOBAL,
-                                    t = msg.header.to_sec(),  #TODO, add actual timestamp. Fixed
+                                    t = 3,  #TODO, add actual timestamp. Fixed
                                     x=msg.longitude,
                                     y=msg.latitude,
                                     z=msg.height,
