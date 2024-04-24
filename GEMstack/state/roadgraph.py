@@ -1,5 +1,6 @@
 from __future__ import annotations
 from ..utils.serialization import register
+from ..mathutils.transforms import point_segment_distance
 from .physical_object import ObjectFrameEnum, convert_point
 from .obstacle import Obstacle
 from .sign import Sign
@@ -270,11 +271,10 @@ class Roadgraph:
         return replace(self, frame = frame, curves = newcurves, lanes = newlanes, regions = newregions, signs = newsigns, static_obstacles = newstatic_obstacles, connections=newconnections)
 
     def get_current_lane(self, state : VehicleState):
-        vehicle_x = state.pose.x
-        vehicle_y = state.pose.y
+        vehicle_point = (state.pose.x, state.pose.y, state.pose.z if state.pose.z is not None else 0)
 
         closest_lane = None
-        smallest_d = float('inf')
+        smallest_dist = float('inf')
         
         for lane_label in self.lanes:
             lane = self.lanes[lane_label]
@@ -299,21 +299,10 @@ class Roadgraph:
 
             for seg in center:
                 for i in range(len(seg)-1):
-                    x1,y1 = seg[i][0], seg[i][1]
-                    x2,y2 = seg[i+1][0], seg[i+1][1]
+                    dist, _ = point_segment_distance(vehicle_point, seg[i], seg[i+1])
 
-                    slope = (y2 - y1) / (x2 - x1)
-                    intercept = y1 - slope * x1
-                    A = -slope
-                    B = 1
-                    C = -intercept
-
-                    d = (abs(A*vehicle_x + B*vehicle_y + C))/(np.sqrt(A**2 + B**2))
-
-                    # TODO what if the intersection is outside of the bounds of the line segment?
-
-                    if d < smallest_d:
-                        smallest_d = d
+                    if dist < smallest_dist:
+                        smallest_dist = dist
                         closest_lane = lane_label
                         break
                     
