@@ -27,10 +27,12 @@ import cv2
 import numpy as np
 from ...utils import conversions
 
-@dataclass 
-class IMUReading:
-    pose : ObjectPose
-    status : str
+# @dataclass 
+# class IMUReading:
+#     pose : ObjectPose
+#     accleration: 
+#     angular_vel: 
+#     status : str
 
 @dataclass 
 class GNSSReading:
@@ -161,9 +163,11 @@ class GEMHardwareInterface(GEMInterface):
         #Written by Enguang
         if name =='imu':
             #manually subscrive to imu topic
-            if type is not IMUReading:
-                raise ValueError("GEMHardwareInterface only supports Septentrio IMU")
+            #Skip type check
+            # if type is not IMUReading:
+            #     raise ValueError("GEMHardwareInterface only supports Septentrio IMU")
             self.imu_sub = rospy.Subscriber("/septentrio_gnss/imu",Imu, callback)
+
         if name == 'gnss':
             topic = self.ros_sensor_topics[name]
             #re-write this part, we don't have inspva GNSS device on gem e4.
