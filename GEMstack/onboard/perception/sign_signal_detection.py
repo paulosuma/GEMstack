@@ -12,28 +12,29 @@ from typing import Dict
 import threading
 import copy
 
-class SignLightDetector(ObjectDetector):
-    
+class SignSignalDetector(ObjectDetector):
+    """Detects road signs and traffic signals."""
+
     def __init__(self, vehicle : VehicleState, 
                  camera_info, camera_image, lidar_point_cloud):
-        detector = YOLO(settings.get('perception.sign_light_detection.model'))
+        detector = YOLO(settings.get('perception.sign_signal_detection.model'))
         super().__init__(vehicle, camera_info, camera_image, lidar_point_cloud, detector)
     
     def detect_agents(self):
-        yolo_class_ids = [
-            3,  #do_not_turn_l
-            4,  #do_not_turn_r
-            5,  #do_not_u_turn
+        class_ids = [
+            3,  # do_not_turn_l
+            4,  # do_not_turn_r
+            5,  # do_not_u_turn
             7,  # green_light
-            9,  #no_parking
-            11, #ped_crossing
-            13, #railway_crossing
-            14, #red_light
-            15, #stop
-            20  #yellow_light
+            9,  # no_parking
+            11, # ped_crossing
+            13, # railway_crossing
+            14, # red_light
+            15, # stop
+            20  # yellow_light
         ]
         
-        detected_objects, bbox_classes = super().detect_objects(yolo_class_ids)
+        detected_objects, bbox_classes = super().detect_objects(class_ids)
 
         detected_agents = []
         for i in range(len(detected_objects)):
@@ -62,8 +63,8 @@ class SignLightDetector(ObjectDetector):
         return Sign(pose=detected_object.pose, dimensions=detected_object.dimensions, outline=None, 
                           type=type_dict[str(bbox_cls)], entities=[])
     
-class OmniscientAgentDetector(Component):
-    """Obtains agent detections from a simulator"""
+class OmniscientSignSignalDetector(Component):
+    """Obtains road sign & traffic signal detections from a simulator"""
     def __init__(self,vehicle_interface : GEMInterface):
         self.vehicle_interface = vehicle_interface
         self.agents = {}
@@ -79,7 +80,7 @@ class OmniscientAgentDetector(Component):
         return ['agents']
 
     def initialize(self):
-        self.vehicle_interface.subscribe_sensor('sign_light_detector',self.agent_callback, Sign)
+        self.vehicle_interface.subscribe_sensor('sign_signal_detector',self.agent_callback, Sign)
     
     def agent_callback(self, name : str, agent : Sign):
         with self.lock:
