@@ -28,8 +28,8 @@ perception:
     #     tolerance_factor: 1  # to make agent detection tolerant to errors in calibration
     agent_detection:
         model: !relative_path '../detection/yolov9c.pt'
-    sign_signal_detection:
-        model: !relative_path '../detection/sign_signal_model.pt'
+    sign_detection:
+        model: !relative_path '../detection/sign_model.pt'
     
 
 #configure the simulator, if using

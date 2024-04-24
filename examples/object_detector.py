@@ -41,8 +41,8 @@ def agent_detector(img : cv2.Mat):
     types = [agent_dict[int(cls)] for cls in results[0].boxes.cls.tolist()]
     return results[0].boxes.xywh.tolist(), types
 
-def sign_signal_detector(img : cv2.Mat):
-    results = detect(img, '../GEMstack/knowledge/detection/sign_signal_model.pt', list(sign_signal_dict.keys()))
+def sign_detector(img : cv2.Mat):
+    results = detect(img, '../GEMstack/knowledge/detection/sign_model.pt', list(sign_signal_dict.keys()))
     types = [sign_signal_dict[int(cls)] for cls in results[0].boxes.cls.tolist()]
     return results[0].boxes.xywh.tolist(), types
 
@@ -94,7 +94,7 @@ if __name__ == '__main__':
         paths = [os.path.join(args.path, f) for f in os.listdir(args.path)]
 
     if args.detector == '2':
-        detector = sign_signal_detector
+        detector = sign_detector
     else:
         detector = agent_detector
 
