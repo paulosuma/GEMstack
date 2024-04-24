@@ -1,4 +1,8 @@
+import sys
+import os
 import time
+
+sys.path.append(os.getcwd()) # to import GEMstack from top level directory
 
 from GEMstack.onboard.planning.road_properties import RoadProperties
 
