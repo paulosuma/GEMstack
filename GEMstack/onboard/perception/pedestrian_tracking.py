@@ -27,7 +27,7 @@ from .kalman_tracker import KalmanTracker  # Behavior Prediction Team
 class PedestrianTracker(Component):
     def __init__(
         self,
-        kalman_config_file="GEMstack/onboard/perception/temp_config.py",
+        kalman_config_file="GEMstack/onboard/perception/2D_bounding_box_config.py",
         detection_file_name="GEMstack/onboard/prediction/tracking_results.txt",
         test=False,
         write_all=False,
