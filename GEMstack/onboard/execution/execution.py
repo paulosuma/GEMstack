@@ -168,6 +168,7 @@ def validate_components(components : Dict[str,ComponentExecutor], provided : Lis
                     assert i in possible_inputs, "Component {} is not supposed to receive input {}".format(k,i)
         outputs = c.c.state_outputs()
         for o in required_outputs:
+            print("requires, ", o)
             if o == 'all':
                 assert outputs == ['all'], "Component {} outputs are not provided by previous components".format(k)
             else:

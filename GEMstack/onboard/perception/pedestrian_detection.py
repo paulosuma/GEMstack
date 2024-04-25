@@ -149,7 +149,7 @@ class PedestrianDetector(Component):
     
 
     def rate(self):
-        return 4.0
+        return 2.5
 
     def state_inputs(self):
         return ['vehicle']
@@ -162,22 +162,22 @@ class PedestrianDetector(Component):
         self.point_cloud = point_cloud
         self.camera_info = camera_info
 
-    # def initialize(self):
-    #     # tell the vehicle to use image_callback whenever 'front_camera' gets a reading, and it expects images of type cv2.Mat
-    #     self.vehicle_interface.subscribe_sensor('front_camera',self.image_callback,cv2.Mat)
-    #     # tell the vehicle to use lidar_callback whenever 'top_lidar' gets a reading, and it expects numpy arrays
-    #     self.vehicle_interface.subscribe_sensor('top_lidar',self.lidar_callback,np.ndarray)
-    #     # subscribe to the Zed CameraInfo topic
-    #     self.camera_info_sub = rospy.Subscriber("/oak/rgb/camera_info", CameraInfo, self.camera_info_callback)
+    def initialize(self):
+        # tell the vehicle to use image_callback whenever 'front_camera' gets a reading, and it expects images of type cv2.Mat
+        self.vehicle_interface.subscribe_sensor('front_camera',self.image_callback,cv2.Mat)
+        # tell the vehicle to use lidar_callback whenever 'top_lidar' gets a reading, and it expects numpy arrays
+        self.vehicle_interface.subscribe_sensor('top_lidar',self.lidar_callback,np.ndarray)
+        # subscribe to the Zed CameraInfo topic
+        self.camera_info_sub = rospy.Subscriber("/oak/rgb/camera_info", CameraInfo, self.camera_info_callback)
 
-    # def image_callback(self, image : cv2.Mat):
-    #     self.zed_image = image
+    def image_callback(self, image : cv2.Mat):
+        self.zed_image = image
 
-    # def camera_info_callback(self, info : CameraInfo):
-    #     self.camera_info = info
+    def camera_info_callback(self, info : CameraInfo):
+        self.camera_info = info
 
-    # def lidar_callback(self, point_cloud: np.ndarray):
-    #     self.point_cloud = point_cloud
+    def lidar_callback(self, point_cloud: np.ndarray):
+        self.point_cloud = point_cloud
 
     def update(self, vehicle : VehicleState) -> Dict[str,AgentState]:
         if self.zed_image is None:
@@ -215,14 +215,14 @@ class PedestrianDetector(Component):
         estimate of the pedestrian's pose and dimensions.
         """
 
-        print ('Detect a pedestrian!')
+        # print ('Detect a pedestrian!')
 
         # get the idxs of point cloud that belongs to the agent
         x,y,w,h = box
         xmin, xmax = x - w/2, x + w/2
         ymin, ymax = y - h/2, y + h/2
 
-        print ('box xywh:', box)
+        # print ('box xywh:', box)
 
         # enlarge bbox in case inaccuracy calibration
         enlarge_factor = 3
@@ -264,7 +264,7 @@ class PedestrianDetector(Component):
         # Specify ObjectPose. Note that The pose's yaw, pitch, and roll are assumed to be 0 for simplicity.
         x, y, _ = closest_point_cloud
         pose = ObjectPose(t=0, x=x, y=y, z=0, yaw=0, pitch=0, roll=0, frame=ObjectFrameEnum.CURRENT)
-        print ('pose xy:', x, y)
+        # print ('pose xy:', x, y)
 
         # Specify AgentState.
         l = np.max(agent_world_pc[:, 0]) - np.min(agent_world_pc[:, 0])

@@ -35,6 +35,13 @@ class PedestrianTracker(Component):
         self.kalman_tracker = KalmanTracker(config_file_path=kalman_config_file)
         self.tracking_results = {}
         self.current_frame = 0
+        
+        self.detection_file_name = detection_file_name
+        self.write_all = write_all
+
+        f = open(self.detection_file_name, "w")
+        f.close()
+
 
         # For Testing
         self.test = test
@@ -73,6 +80,8 @@ class PedestrianTracker(Component):
         pass
 
     def update(self, detected_agents: List[AgentState]):
+
+        print("Updating with detected, ", detected_agents)
         """Update the component."""
         self.track_agents(detected_agents=detected_agents)
         return self.output_tracking_results()
@@ -154,6 +163,7 @@ class PedestrianTracker(Component):
         
         # Dummy frames should be written for these pids
         valid_pids = set()
+
         with open(self.detection_file_name, "w") as f:
             for frame in sorted(self.tracking_results):
                 for line in sorted(self.tracking_results[frame]):
@@ -179,4 +189,6 @@ class PedestrianTracker(Component):
                             f.write(dummy_frame)
                         tracking_frames.append(dummy_frame)
 
+        print("Tracking results, ", tracking_frames)
         return np.array([tracking_frame.split(' ') for tracking_frame in tracking_frames])
+        # return [tracking_frame.split(' ') for tracking_frame in tracking_frames]
