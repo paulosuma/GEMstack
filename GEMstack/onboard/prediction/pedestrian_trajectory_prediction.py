@@ -1,11 +1,19 @@
-from ...state import AllState,VehicleState,ObjectPose,ObjectFrameEnum,AgentState,AgentEnum,AgentActivityEnum
+from ...state import (
+    AllState,
+    VehicleState,
+    ObjectPose,
+    ObjectFrameEnum,
+    AgentState,
+    AgentEnum,
+    AgentActivityEnum,
+)
 from ...utils import settings
 from ...mathutils import transforms
 from ..interface.gem import GEMInterface
 from ..component import Component
 from ultralytics import YOLO
 import numpy as np
-from typing import Dict,Tuple, List
+from typing import Dict, Tuple, List
 import time
 from numpy.linalg import inv
 import subprocess
@@ -17,14 +25,13 @@ from collections import defaultdict
 NUM_PREV_FRAMES = 7
 NUM_FUTURE_FRAMES = 12
 
-def start_model_process(model_path, env_path):
-    python_path = '/root/miniconda3/envs/AgentFormer/bin/python'
-    return subprocess.Popen(
-        [python_path, model_path],# ["conda", "run", "-n", env_path, "python", model_path],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        encoding="utf-8",
-    )
+
+def load_model(cfg):
+    model = model_dict[cfg.model_name](cfg)
+    model.set_device(device)
+    model.eval()
+    return model
+
 
 def run_model(process):
     process.stdin.write("GET PREDICTIONS" + "\n")
@@ -40,41 +47,46 @@ def run_model(process):
 
 class PedestrianTrajPrediction(Component):
     """Detects and tracks pedestrians."""
-    def __init__(self,vehicle_interface : GEMInterface):
-        self.model_process  = start_model_process("agentformer_process.py", 'AgentFormer')
+
+    def __init__(self, vehicle_interface: GEMInterface):
+        self.model_process = start_model_process(
+            "agentformer_process.py", "AgentFormer"
+        )
         self.frame_rate = 2.5
-        
+
     def rate(self):
-        return 0.5 # once every 2 seconds
-    
+        return 0.5  # once every 2 seconds
+
     def state_inputs(self):
-        return ['tracking_frames']
-    
+        return ["tracking_frames"]
+
     def state_outputs(self):
-        return ['predicted_trajectories']
-    
-    def test_set_data(self, zed_image, point_cloud, camera_info='dummy'):
+        return ["predicted_trajectories"]
+
+    def test_set_data(self, zed_image, point_cloud, camera_info="dummy"):
         self.zed_image = zed_image
         self.point_cloud = point_cloud
         self.camera_info = camera_info
 
     def initialize(self):
-       pass
+        pass
 
     def estimate_velocity(self, past_values):
         # estimate velocity from past few frames
         pass
-    
+
     # def convert_data_from_model_output(self, file_name) -> Dict[List[AgentState]]:
     # Changing signature of model since we changed the output format of AgentFormer to return the actual tensor
-    def convert_data_from_model_output(self, sample_model_3D, frame) -> List[Dict[List[AgentState]]]:
+    def convert_data_from_model_output(
+        self, sample_model_3D, frame
+    ) -> List[Dict[List[AgentState]]]:
         # # read the file and convert the data to AgentState objects
         # agent_dict = defaultdict(list) # Key: Pedestrian ID | Value: List of AgentStates for each future frame
         # Commenting out the code that reads lines from a file because we changed the output format of AgentFormer to return the actual tensor
         # file = open(file_name, 'r')
         # read through file line by lie
         # for line in file.readlines():
-        #     # split the 
+        #     # split the
         #     frame_id, ped_id, x, y = line.split(' ')
         #     # convert to floats
         #     frame_id, ped_id, x, y = float(frame_id), float(ped_id), float(x), float(y)
@@ -90,7 +102,7 @@ class PedestrianTrajPrediction(Component):
         #     l = 1
         #     w = 1
         #     h = 1.7
-        #     dims = (w, h, l) 
+        #     dims = (w, h, l)
         #     #velocity = estimate velocity from past few frames
         #     agent_state = AgentState(pose=pose,dimensions=dims,outline=None,type=AgentEnum.PEDESTRIAN,activity=AgentActivityEnum.MOVING,velocity=(0,0,0),yaw_rate=0)
         #     agent_dict[ped_id].append(agent_state)
@@ -100,7 +112,9 @@ class PedestrianTrajPrediction(Component):
         # sample_model_3D: 5 x ped_id x 12 x 2
         for traj in range(sample_model_3D.shape[0]):
             # Create the dictionary of pedestrian-future AgentState lists for the current trajectory
-            agent_dict = defaultdict(list) # Key: Pedestrian ID | Value: List of AgentStates for each future frame
+            agent_dict = defaultdict(
+                list
+            )  # Key: Pedestrian ID | Value: List of AgentStates for each future frame
             for ped_id in range(sample_model_3D.shape[1]):
                 for future_frame_id in range(sample_model_3D.shape[2]):
                     # flip the x- and y-coordinates back to normal
@@ -112,7 +126,16 @@ class PedestrianTrajPrediction(Component):
                     time = frame_id / self.frame_rate + self.cur_time
 
                     # create an AgentState object
-                    pose = ObjectPose(t=time, x=x, y=y, z=0, yaw=0, pitch=0, roll=0, frame=ObjectFrameEnum.START)
+                    pose = ObjectPose(
+                        t=time,
+                        x=x,
+                        y=y,
+                        z=0,
+                        yaw=0,
+                        pitch=0,
+                        roll=0,
+                        frame=ObjectFrameEnum.START,
+                    )
 
                     print("pose xy: ", x, y)
 
@@ -122,11 +145,18 @@ class PedestrianTrajPrediction(Component):
                     h = 1.7
                     dims = (w, h, l)
                     # velocity = esimate velocity from past few frames
-                    agent_state = AgentState(pose=pose, dimension=dims, outline=None, type=AgentEnum.PEDESTRIAN, activity=AgentActivityEnum.MOVING, velocity=(0, 0, 0), yaw_rate=0)
+                    agent_state = AgentState(
+                        pose=pose,
+                        dimension=dims,
+                        outline=None,
+                        type=AgentEnum.PEDESTRIAN,
+                        activity=AgentActivityEnum.MOVING,
+                        velocity=(0, 0, 0),
+                        yaw_rate=0,
+                    )
                     agent_dict[ped_id].append(agent_state)
             agent_list.append(agent_dict)
         return agent_dict
-            
 
     # takes in the agent states of the past 8 frames and returns the predicted trajectories of the agents in the next 12 frames
     # outputs dictionary where key is the sampler id and value is the list of agent states for the next 12 frames
@@ -142,13 +172,20 @@ class PedestrianTrajPrediction(Component):
         #     state[2], state[4] = state[4], state[2]
         #     state = ' '.join(state)
         #     # output to a file
-        
+        # flip the x- and y-coordinates for each pedestrian in each frame
+        past_agent_states[:, -2], past_agent_states[:, -4] = (
+            past_agent_states[:, -4],
+            past_agent_states[:, -2],
+        )
         # flip the x- and y-coordinates for each pedestrian in each frame
         for i in range(past_agent_states.shape[0]):
             # original x-coordinate: 4th to last coordinate
             # original y-coordinate: 2nd to last coordinate
-            past_agent_states[i][-2], past_agent_states[i][-4] = past_agent_states[i][-4], past_agent_states[-2]
-            
+            past_agent_states[i][-2], past_agent_states[i][-4] = (
+                past_agent_states[i][-4],
+                past_agent_states[-2],
+            )
+
         # write data to file which model will read
 
         # run the traj prediction model on data
@@ -161,10 +198,10 @@ class PedestrianTrajPrediction(Component):
 
         # convert data to AgentState objects make sure to convert the frames to time(which will add to the AgentPose object)
         agent_list = self.convert_data_from_model_output(sample_model_3D, frame)
-        
+
         # return data
         return agent_list
-        
+
     def cleanup(self):
         # clean up subprocess which runs the model.
         self.model_process.stdin.close()
