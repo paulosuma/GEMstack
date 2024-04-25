@@ -52,6 +52,7 @@ class AllState(SceneState):
     # pedestrian detection and tracking items
     detected_agents : List[AgentState] = None
     tracking_frames : np.ndarray = None
+    predicted_trajectories : List[Dict[List[AgentState]]] = None
 
     @staticmethod
     def zero():

@@ -17,11 +17,11 @@ import numpy as np
 from collections import defaultdict
 
 # path = "GEMstack/onboard/prediction/agentformer"
-sys.path.append('../agentformer/')
-from utils.torch import *
-from utils.config import Config
+# sys.path.append('../agentformer/')
+from agentformer.utils.torch import *
+from agentformer.utils.config import Config
 from model.model_lib import model_dict
-from utils.utils import prepare_seed, print_log, mkdir_if_missing
+from agentformer.utils.utils import prepare_seed, print_log, mkdir_if_missing
 from dataloader_improved import data_generator
 
 # 8 frames used to base future trajectories off of (current frame plus previous 7)
@@ -35,6 +35,7 @@ PEDESTRIAN_DIMS = (1, 1, 1.7)
 class PedestrianTrajPrediction(Component):
     """Detects and tracks pedestrians."""
     def __init__(self,vehicle_interface : GEMInterface):
+        print("initializing trajpredict CONSTRUCTOR")
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = self.load_model(CONFIG_FILE)
         self.frame_rate = 2.5
@@ -132,7 +133,8 @@ class PedestrianTrajPrediction(Component):
         self.camera_info = camera_info
 
     def initialize(self):
-       pass
+        print("initializing trajpredict")
+        pass
 
     # May not need this if motion planning can just get the velocities themselves
     def estimate_velocity(self, past_values):
@@ -180,6 +182,7 @@ class PedestrianTrajPrediction(Component):
     # Assuming that past_agent_states is actually a numpy array instead of just a list of strings
     # past_agent_states.shape: [num_frames_in_model * (peds_in_frame for frame in frames), 17]
     def update(self, past_agent_states) -> List[Dict[List[AgentState]]]:
+        print("input to trajpredict, ", past_agent_states.shape)
         data = copy.deepcopy(past_agent_states)
         self.cur_time = time.time()
         # flip the x- and y-coordinates for each pedestrian in each frame

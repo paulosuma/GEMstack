@@ -21,6 +21,9 @@ components:
   - agent_tracking:
       inputs: detected_agents
       outputs: tracking_frames
+  - agent_prediction:
+      inputs: tracking_frames
+      outputs: predicted_trajectories
   - lane_detection:
       inputs: [vehicle, roadgraph]
       outputs: vehicle_lane
