@@ -29,31 +29,76 @@
                 "height": null
             }
         },
-        "lanes": {},
-        "regions": {
-            "curbside": {
-                "type": 2,
-                "outline": [
-                    [
-                        6.0,
-                        -0.1
+        "lanes": {
+            "lane1": {
+                "type": 0,
+                "surface": 0,
+                "route_name": "Green St. ",
+                "left": {
+                    "type": 0,
+                    "segments": [
+                        [
+                            [
+                                0.0,
+                                8.0,
+                                0.0
+                            ],
+                            [
+                                40.0,
+                                8.0,
+                                0.0
+                            ]
+                        ]
                     ],
-                    [
-                        40.0,
-                        -0.1
+                    "crossable": false,
+                    "elevation": null,
+                    "height": null
+                },
+                "right": {
+                    "type": 0,
+                    "segments": [
+                        [
+                            [
+                                0.0,
+                                4.0,
+                                0.0
+                            ],
+                            [
+                                40.0,
+                                4.0,
+                                0.0
+                            ]
+                        ]
                     ],
-                    [
-                        40.0,
-                        4.0
+                    "crossable": true,
+                    "elevation": null,
+                    "height": null
+                },
+                "center": {
+                    "type": 0,
+                    "segments": [
+                        [
+                            [
+                                0.0,
+                                6.0,
+                                0.0
+                            ],
+                            [
+                                40.0,
+                                6.0,
+                                0.0
+                            ]
+                        ]
                     ],
-                    [
-                        6.0,
-                        4.0
-                    ]
-                ],
-                "crossable": true
+                    "crossable": false,
+                    "elevation": null,
+                    "height": null
+                },
+                "begin": null,
+                "end": null
             }
         },
+        "regions": {},
         "signs": {},
         "static_obstacles": {},
         "connections": []
