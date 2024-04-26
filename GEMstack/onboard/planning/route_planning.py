@@ -268,7 +268,7 @@ class SearchNavigationRoutePlanner(Component):
             yaws = yaws[::-1]
             gear = gear[::-1]
             last_path = last_path[::-1]
-            self.route = Route(frame=ObjectFrameEnum.START,points=route,yaws=yaws,gear=gear)
+            self.route = Route(frame=ObjectFrameEnum.START,points=route,yaws=yaws)
             self.last_path = last_path
         
         route = self.route

@@ -16,4 +16,3 @@ class Route(Path):
     lanes : List[str] = field(default_factory=list)
     wait_lines : List[str] = field(default_factory=list)
     yaws : Optional[List[float]] = None
-    gear: Optional[List[int]] = None

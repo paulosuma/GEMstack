@@ -17,7 +17,7 @@ safety_margin = 0.1
 
 
 # Setup the MPC problem 
-def setup_mpc(N, dt, L, path_points, x, gear=0):
+def setup_mpc(N, dt, L, path_points, x):
     # Constraints
     delta_max = 0.6108
     omega_max = 0.2 # TODO: What is a good value for this?
@@ -136,8 +136,6 @@ class MPCTracker(Component):
         path_points = []
         closest_dist,closest_parameter = trajectory.closest_point([x_start, y_start])
         closest_parameter = max(self.last_progress, closest_parameter)
-        ind, _ = trajectory.time_to_index(closest_parameter)
-        gear = trajectory.gear[ind]
         # if closest_parameter - self.last_progress < 0.02:
         #     self.horizen_scale *= 0.9
         # else:
@@ -156,7 +154,7 @@ class MPCTracker(Component):
         # print([x_start, y_start, theta_start, v_start, wheel_angle_start])
         # print(path_points)
 
-        accel, wheel_angle = setup_mpc(self.N, dt, L, path_points, [x_start, y_start, theta_start, v_start, wheel_angle_start], gear)
+        accel, wheel_angle = setup_mpc(self.N, dt, L, path_points, [x_start, y_start, theta_start, v_start, wheel_angle_start])
         # print(accel, wheel_angle)
         
         # desired_yaw = np.arctan2(path_points[1][0],path_points[1][1])
