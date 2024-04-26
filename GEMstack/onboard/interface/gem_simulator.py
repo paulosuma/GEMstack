@@ -58,13 +58,12 @@ class AgentSimulation:
         self.behavior = config['behavior']
         self.start = self.position[:]
         self.yaw = config.get('yaw',0)
-        
         self.is_waving = config.get('waving', False)
 
     def to_agent_state(self) -> AgentState:
         pose = ObjectPose(frame=ObjectFrameEnum.ABSOLUTE_CARTESIAN,t=time.time(),x=self.position[0],y=self.position[1],yaw=self.yaw)
         activity = AgentActivityEnum.MOVING if self.velocity[0] != 0 or self.velocity[1] != 0 else AgentActivityEnum.STOPPED
-        attributes = AgentAttributesFlag.WAVING if self.is_waving else AgentAttributesFlag.NONE
+        attributes = AgentAttributesFlag.WAVING if self.is_waving else AgentAttributesFlag.DEFAULT
         return AgentState(pose=pose,dimensions=AGENT_DIMENSIONS[self.type],outline=None,
                           type=AGENT_TYPE_TO_ENUM[self.type],
                         activity=activity,velocity=(self.velocity[0],self.velocity[1],0),yaw_rate=0.0, attributes=attributes)
