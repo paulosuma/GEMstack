@@ -220,6 +220,11 @@ class EKSStateEstimator(Component):
         print('GNSS pose X Y yaw', vehicle_pose_global.x, vehicle_pose_global.y, vehicle_pose_global.yaw)
         #readings belong to GEMVehicleReading class
         #combine speed, steering, left/right signal etc with vehicle_pose_global
+
+        #Radian to meters here
+        self.initialize_converter(-1.540009687915658, 0.6997620706897224)
+        self.to_cartesian(vehicle_pose_global.x, vehicle_pose_global.y, vehicle_pose_global.yaw)
+
         readings = self.vehicle_interface.get_reading()
 
         #raw is VehicleState type
@@ -230,29 +235,38 @@ class EKSStateEstimator(Component):
         raw.v = filt_vel
         return raw
     
-    def initialize_converter(init_lon, init_lat):
+    def initialize_converter(self, init_lon, init_lat):
         """ Store initial longitude and latitude converted to degrees """
-        init_lon = math.degrees(init_lon)
-        init_lat = math.degrees(init_lat)
-        return init_lon, init_lat
+        self. init_lon = math.degrees(init_lon)
+        self. init_lat = math.degrees(init_lat)
+        # return init_lon, init_lat
     
-    def to_cartesian(init_lon, init_lat, lon, lat, yaw):
+    def to_cartesian(self, lon, lat, yaw):
         """ Convert geographical coordinates to Cartesian coordinates """
         # Convert input coordinates from radians to degrees
         lon = math.degrees(lon)
         lat = math.degrees(lat)
 
         # Calculate differences in coordinates
-        dlat = math.radians(lat - init_lat)
-        dlon = math.radians(lon - init_lon)
-        a = init_lat * math.pi / 180
+        dlat = math.radians(lat - self.init_lat)
+        dlon = math.radians(lon - self.init_lon)
+        a = self.init_lat * math.pi / 180
 
         # Convert differences in latitude and longitude to distances in meters
         dx = dlon * earth_radius * math.cos(a)
         dy = dlat * earth_radius
 
+        self.dx = dx
+        self.dy = dy
+        self.yaw = yaw
+
         # Return the differences as new (x, y) coordinates and the unchanged yaw
         return dx, dy, yaw
+    
+    # Example usage
+    # initial_lon, initial_lat = initialize_converter(-1.540009687915658, 0.6997620706897224)
+    # x, y, yaw = to_cartesian(initial_lon, initial_lat, -1.540009687915658, 0.6997620706897224, 2.792526766781833)
+    # print(f"X: {x:.2f}, Y: {y:.2f}, Yaw: {yaw:.2f}")
 
 
 
