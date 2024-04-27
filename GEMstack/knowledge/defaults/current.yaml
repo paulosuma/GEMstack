@@ -39,6 +39,11 @@ planner:
         precomputed: !relative_path ../heuristics/reeds_shepp.npy
 
 
+A_star_planner:  
+    !include A_star_planner.yaml
+MPC_planner:
+    !include MPC_planner.yaml
+
 #configure the simulator, if using
 simulator:
     dt: 0.01
