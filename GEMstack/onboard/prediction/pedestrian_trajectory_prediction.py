@@ -1,11 +1,19 @@
-from ...state import AllState,VehicleState,ObjectPose,ObjectFrameEnum,AgentState,AgentEnum,AgentActivityEnum
+from ...state import (
+    AllState,
+    VehicleState,
+    ObjectPose,
+    ObjectFrameEnum,
+    AgentState,
+    AgentEnum,
+    AgentActivityEnum,
+)
 from ...utils import settings
 from ...mathutils import transforms
 from ..interface.gem import GEMInterface
 from ..component import Component
 from ultralytics import YOLO
 import numpy as np
-from typing import Dict,Tuple, List
+from typing import Dict, Tuple, List
 import time
 from numpy.linalg import inv
 import subprocess
@@ -28,13 +36,15 @@ from dataloader_improved import data_generator
 NUM_PREV_FRAMES = 7
 NUM_FUTURE_FRAMES = 12
 
-CONFIG_FILE = 'model_cfg/inference.yml'
+CONFIG_FILE = "model_cfg/inference.yml"
 
 PEDESTRIAN_DIMS = (1, 1, 1.7)
 
+
 class PedestrianTrajPrediction(Component):
     """Detects and tracks pedestrians."""
-    def __init__(self,vehicle_interface : GEMInterface):
+
+    def __init__(self, vehicle_interface: GEMInterface):
         print("initializing trajpredict CONSTRUCTOR")
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = self.load_model(CONFIG_FILE)
@@ -42,7 +52,9 @@ class PedestrianTrajPrediction(Component):
         self.config = Config(CONFIG_FILE)
 
     # Do NOT use until we get our model workinggnikrow
-    def convert_data_to_model_input(self, past_agent_states : List[Dict[int, AgentState]]) -> np.ndarray:
+    def convert_data_to_model_input(
+        self, past_agent_states: List[Dict[int, AgentState]]
+    ) -> np.ndarray:
         # takes in list of dictionaries corresponding to past 8 frames
         past_frames = []
         for frame in past_agent_states:
@@ -55,31 +67,33 @@ class PedestrianTrajPrediction(Component):
                 row[1] = ped_id
                 row[-4] = x
                 row[-2] = y
-                
+
             past_frames.append(row)
             past_frames = np.array(past_frames).astype(str)
         return past_frames
 
-    #  Load a model from the file specified in config. 
+    #  Load a model from the file specified in config.
     def load_model(self):
-        model = model_dict['dlow'](self.config)
+        model = model_dict["dlow"](self.config)
         model.set_device(self.device)
         model.eval()
         cp_path = self.config.model_path
 
-        print(f'loading model from checkpoint: {cp_path}')
-        model_cp = torch.load(cp_path, map_location='cpu')
-        model.load_state_dict(model_cp['model_dict'], strict=False)
+        print(f"loading model from checkpoint: {cp_path}")
+        model_cp = torch.load(cp_path, map_location="cpu")
+        model.load_state_dict(model_cp["model_dict"], strict=False)
         model = model_dict[self.config.model_name](self.config)
         return model
 
     # Run the model on the data
     def run_model(self, data):
-        split = 'test'
-        generator = data_generator(self.config, data, split=split, phase='testing')
-        sample_motion_3D, valid_id, frame = self.run_model_on_data(generator) # [samples, num_agents, future_frames, 2]
+        split = "test"
+        generator = data_generator(self.config, data, split=split, phase="testing")
+        sample_motion_3D, valid_id, frame = self.run_model_on_data(
+            generator
+        )  # [samples, num_agents, future_frames, 2]
         sample_motion_3D = sample_motion_3D[self.cf.best_samples]
-        # write to file or return  
+        # write to file or return
         # select the
         # flush the output to stdout
         sys.stdout.flush()
@@ -89,45 +103,49 @@ class PedestrianTrajPrediction(Component):
         print(sample_motion_3D.shape)
 
         # load in gt_results from real_results.pt
-        gt_results = torch.load('real_results.pt')
+        gt_results = torch.load("real_results.pt")
         # check if the two tensors are equal
-        print("the results match the expected results", torch.equal(sample_motion_3D, gt_results))
-        
+        print(
+            "the results match the expected results",
+            torch.equal(sample_motion_3D, gt_results),
+        )
+
         return sample_motion_3D, valid_id, frame
-    
+
     def get_model_prediction(self, data):
         sample_k = self.config.sample_k
         self.model.set_data(data)
-        sample_motion_3D, data = self.model.inference(mode='infer', sample_num=sample_k, need_weights=False)
+        sample_motion_3D, data = self.model.inference(
+            mode="infer", sample_num=sample_k, need_weights=False
+        )
         sample_motion_3D = sample_motion_3D.transpose(0, 1).contiguous()
         return sample_motion_3D
-    
+
     def run_model_on_data(self, generator):
         while not generator.is_epoch_end():
             data = generator()
             if data is None:
                 continue
-            seq_name, frame = data['seq'], data['frame']
+            seq_name, frame = data["seq"], data["frame"]
 
             frame = int(frame)
-            
+
             with torch.no_grad():
                 sample_motion_3D = self.get_model_prediction(data)
             sample_motion_3D = sample_motion_3D * self.config.traj_scale
-        
-            return sample_motion_3D, data['valid_id'], frame
-        
+
+            return sample_motion_3D, data["valid_id"], frame
 
     def rate(self):
-        return 0.5 # once every 2 seconds
-    
+        return 0.5  # once every 2 seconds
+
     def state_inputs(self):
-        return ['tracking_frames']
-    
+        return ["tracking_frames"]
+
     def state_outputs(self):
-        return ['predicted_trajectories']
-    
-    def test_set_data(self, zed_image, point_cloud, camera_info='dummy'):
+        return ["predicted_trajectories"]
+
+    def test_set_data(self, zed_image, point_cloud, camera_info="dummy"):
         self.zed_image = zed_image
         self.point_cloud = point_cloud
         self.camera_info = camera_info
@@ -140,16 +158,20 @@ class PedestrianTrajPrediction(Component):
     def estimate_velocity(self, past_values):
         # estimate velocity from past few frames
         self.cur_time = time.time()
-        
+
         pass
-    
+
     # Changing signature of model since we changed the output format of AgentFormer to return the actual tensor
-    def convert_data_from_model_output(self, sample_model_3D, valid_id, frame) -> List[Dict[List[AgentState]]]:
+    def convert_data_from_model_output(
+        self, sample_model_3D, valid_id, frame
+    ) -> List[Dict[List[AgentState]]]:
         agent_list = []
         # sample_model_3D: 5 x ped_id x 12 x 2
         for traj in range(sample_model_3D.shape[0]):
             # Create the dictionary of pedestrian-future AgentState lists for the current trajectory
-            agent_dict = defaultdict(list) # Key: Pedestrian ID | Value: List of AgentStates for each future frame
+            agent_dict = defaultdict(
+                list
+            )  # Key: Pedestrian ID | Value: List of AgentStates for each future frame
             for ped_idx in range(sample_model_3D.shape[1]):
                 for future_frame_id in range(sample_model_3D.shape[2]):
                     ped_id = valid_id[ped_idx]
@@ -162,7 +184,16 @@ class PedestrianTrajPrediction(Component):
                     time = frame_id / self.frame_rate + self.cur_time
 
                     # create an AgentState object
-                    pose = ObjectPose(t=time, x=x, y=y, z=0, yaw=0, pitch=0, roll=0, frame=ObjectFrameEnum.START)
+                    pose = ObjectPose(
+                        t=time,
+                        x=x,
+                        y=y,
+                        z=0,
+                        yaw=0,
+                        pitch=0,
+                        roll=0,
+                        frame=ObjectFrameEnum.START,
+                    )
 
                     print("pose xy: ", x, y)
 
@@ -170,11 +201,18 @@ class PedestrianTrajPrediction(Component):
                     dims = PEDESTRIAN_DIMS
                     # velocity = esimate velocity from past few frames
                     # velocity = self.estimate_velocity(past few frames)
-                    agent_state = AgentState(pose=pose, dimension=dims, outline=None, type=AgentEnum.PEDESTRIAN, activity=AgentActivityEnum.MOVING, velocity=(0, 0, 0), yaw_rate=0)
+                    agent_state = AgentState(
+                        pose=pose,
+                        dimension=dims,
+                        outline=None,
+                        type=AgentEnum.PEDESTRIAN,
+                        activity=AgentActivityEnum.MOVING,
+                        velocity=(0, 0, 0),
+                        yaw_rate=0,
+                    )
                     agent_dict[ped_id].append(agent_state)
             agent_list.append(agent_dict)
         return agent_dict
-            
 
     # takes in the agent states of the past 8 frames and returns the predicted trajectories of the agents in the next 12 frames
     # outputs dictionary where key is the sampler id and value is the list of agent states for the next 12 frames
@@ -194,11 +232,13 @@ class PedestrianTrajPrediction(Component):
         # output frame 7/2.5 -> time  + cur_time = detection_time
 
         # convert data to AgentState objects make sure to convert the frames to time(which will add to the AgentPose object)
-        agent_list = self.convert_data_from_model_output(sample_model_3D, valid_ids, frame)
-        
+        agent_list = self.convert_data_from_model_output(
+            sample_model_3D, valid_ids, frame
+        )
+
         # return data
         return agent_list
-        
+
     def cleanup(self):
         # clean up subprocess which runs the model.
         self.model.stdin.close()

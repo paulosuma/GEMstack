@@ -17,11 +17,11 @@ import numpy as np
 from collections import defaultdict
 
 # path = "GEMstack/onboard/prediction/agentformer"
-sys.path.append('../agentformer/')
-from .agentformer.utils.torch import *
-from .agentformer.utils.config import Config
-from .agentformer.model.model_lib import model_dict
-from .agentformer.utils.utils import prepare_seed, print_log, mkdir_if_missing
+sys.path.append('GEMstack/onboard/perception/agentformer')
+from utils.torch import *
+from utils.config import Config
+from model.model_lib import model_dict
+from utils.utils import prepare_seed, print_log, mkdir_if_missing
 from dataloader_improved import data_generator
 
 # 8 frames used to base future trajectories off of (current frame plus previous 7)
