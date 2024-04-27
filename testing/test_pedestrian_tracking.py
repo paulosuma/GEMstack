@@ -5,7 +5,7 @@ import cv2
 sys.path.append(os.getcwd())
 abs_path = os.path.abspath(os.path.dirname(__file__))
 
-from GEMstack.onboard.perception.pedestrian_detection import PedestrianDetector
+from GEMstack.onboard.perception.agent_detection import MultiObjectDetector
 from GEMstack.onboard.perception.pedestrian_tracking import PedestrianTracker
 from GEMstack.onboard.interface.gem import GEMInterface
 
@@ -37,6 +37,7 @@ class TestHelper:
    
     def test_track_agents(self, framenum=80):
         for i in range(1, framenum + 1):
+            print("FRAME: ", i)
             lidar_fn = os.path.join(args.src_dir, f'lidar{i}.npz')
             image_fn = os.path.join(args.src_dir, f'color{i}.png')
             depth_fn = os.path.join(args.src_dir, f'depth{i}.tif')
@@ -112,7 +113,7 @@ if __name__=='__main__':
                  [0,       0 ,             0 ,      1]]
 
     gem_interface = GEMInterface()
-    ped_detector = PedestrianDetector(gem_interface, extrinsic)
+    ped_detector = MultiObjectDetector(gem_interface) #, extrinsic)
     
     # Create PedTracker
     ped_tracker = PedestrianTracker(
