@@ -14,9 +14,9 @@ import casadi as ca
 
 class MPC(object):
     def __init__(self):
-        self.horizon_steps = settings.get('model_predictive_controller.horizon_steps', 10)
+        self.horizon_steps = settings.get('model_predictive_controller.horizon_steps', 2)
         self.dt = settings.get('model_predictive_controller.dt', 0.1) # s
-        self.rate = settings.get('model_predictive_control.rate', 5.0) # Hz
+        self.rate = settings.get('model_predictive_control.rate', 10.0) # Hz
 
         self.wheelbase  = settings.get('vehicle.geometry.wheelbase') # m
         self.steering_angle_range = [settings.get('vehicle.geometry.min_steering_angle'),settings.get('vehicle.geometry.max_steering_angle')] # radians
@@ -26,17 +26,18 @@ class MPC(object):
         self.max_accel = settings.get('vehicle.limits.max_acceleration') # m/s^2
         self.max_decel = settings.get('vehicle.limits.max_deceleration') # m/s^2
 
-        self.min_dist = settings.get('model_predictive_controller.min_dist', 10.0) # meters
+        self.min_dist = settings.get('model_predictive_controller.min_dist', 5.0) # meters
         self.min_obst_dist = settings.get('model_predictive_controller.min_obst_dist', 3.0) # meters
         self.time_headway = settings.get('model_predictive_controller.time_headway', 5.0) # seconds
-        self.front_degree_range = settings.get('model_predictive_controller.front_degree_range', 5.0) # degrees
+        self.front_degree_range = settings.get('model_predictive_controller.front_degree_range', 10.0) # degrees
+        self.front_relevance_dist = settings.get('model_predictive_controller.front_relevance_dist', 50.0) # meters
 
         self.lane_penalty_constant = settings.get('model_predictive_controller.lane_penalty_constant', 1000)
-        self.lane_centerline = None # list of list of tuples or None
+        self.lane_centerline = None # list of tuples or None
 
         self.healthy = True # Track whether a solution was found
 
-    def compute(self, x0, y0, theta0, v0, x_goal, y_goal, theta_goal, v_goal, obstacles):
+    def compute(self, x0, y0, theta0, v0, obstacles):
         """
         Setup and solve the MPC problem.
         Returns the first control inputs (v, delta) from the optimized trajectory.
@@ -51,14 +52,11 @@ class MPC(object):
         opti = ca.Opti()  # Create an optimization problem
 
         # State
-        # TODO: Add second order dynamics for steering angle
         X = opti.variable(4, self.horizon_steps+1)  # [x, y, theta, v]
-        # X = opti.variable(5, N+1)  # [x, y, theta, v, delta]
         U = opti.variable(2, self.horizon_steps)    # [a, delta/omega]
 
         # Initial constraints
         opti.subject_to(X[:,0] == [x0, y0, theta0, v0])
-        # opti.subject_to(X[:,0] == [x0, y0, theta0, v0, delta0])
 
         # Dynamics constraints
         obstacle_penalty = 0
@@ -69,14 +67,11 @@ class MPC(object):
             v_next = X[3,k] + U[0,k] * self.dt
             theta_next = X[2,k] + X[3,k]/self.wheelbase * ca.tan(U[1,k]) * self.dt
             theta_next = self.wrap_to_pi(theta_next)
-            # theta_next = X[2,k] + X[3,k]/L*ca.tan(X[4,k])*dt
-            # delta_next = X[4,k] + U[1,k]*dt
             
             opti.subject_to(X[0,k+1] == x_next)
             opti.subject_to(X[1,k+1] == y_next)
             opti.subject_to(X[2,k+1] == theta_next)
             opti.subject_to(X[3,k+1] == v_next)
-            # opti.subject_to(X[4,k+1] == delta_next)
 
             # Lane keeping
             if self.lane_centerline:
@@ -84,19 +79,19 @@ class MPC(object):
                 best_yaw = 0
 
                 px, py = X[0, k], X[1, k]
-                for seg in self.lane_centerline:
-                    for i in range(len(seg)-1):
-                        ax, ay, _ = seg[i]
-                        bx, by, _ = seg[i+1]
+                for i in range(len(self.lane_centerline)-1):
+                    ax, ay, _ = self.lane_centerline[i]
+                    bx, by, _ = self.lane_centerline[i+1]
 
-                        dist, _ = self.segment_distance(px, py, ax, ay, bx, by)
-                        segment_yaw = ca.atan2(by - ay, bx - ax)
+                    dist, point = self.segment_distance(px, py, ax, ay, bx, by)
+                    segment_yaw = ca.atan2(by - ay, bx - ax)
 
-                        update_cond = dist < min_dist
-                        min_dist = ca.if_else(update_cond, dist, min_dist)
-                        best_yaw = ca.if_else(update_cond, segment_yaw, best_yaw)
+                    update_cond = dist < min_dist
+                    min_dist = ca.if_else(update_cond, dist, min_dist)
+                    best_yaw = ca.if_else(update_cond, segment_yaw, best_yaw)
                 
-                lane_penalty += self.lane_penalty_constant * ca.sumsqr(X[2,k] - best_yaw)
+                lane_penalty += ca.sumsqr(X[2,k] - best_yaw)
+                lane_penalty += ca.sumsqr(px - point[0]) + ca.sumsqr(py - point[1])
 
 
             # Obstacle constraints
@@ -117,7 +112,8 @@ class MPC(object):
                 is_car = (obs_type == AgentEnum.CAR or obs_type == AgentEnum.LARGE_TRUCK or obs_type == AgentEnum.MEDIUM_TRUCK)
 
                 # Check if they are in front of us (within range)
-                in_front = ca.fabs(disp_angle - self.wrap_to_pi(X[2, k])) <= self.front_degree_range
+                in_front = ca.logic_and(ca.fabs(disp_angle - self.wrap_to_pi(X[2, k])) <= self.front_degree_range,
+                                        distance_squared <= self.front_relevance_dist**2)
 
                 # Condition to apply car penalty
                 car_in_front = ca.logic_and(is_car, in_front)
@@ -142,13 +138,9 @@ class MPC(object):
         opti.subject_to(opti.bounded(-1 * self.max_decel, U[0,:], self.max_accel))
         opti.subject_to(opti.bounded(self.steering_angle_range[0], U[1,:], self.steering_angle_range[1]))
         opti.subject_to(opti.bounded(-1 * self.max_reverse_speed, X[3,:], self.max_speed))
-        # opti.subject_to(opti.bounded(omega_min, U[1,:], omega_max))
-        # opti.subject_to(opti.bounded(delta_min, X[4,:], delta_max))
-        
 
-        # objective
-        # objective = ca.sumsqr(X[0:4,-1] - [x_goal, y_goal, theta_goal, v_goal])
-        objective = ca.sumsqr(X[0:4,-1] - [x_goal, y_goal, theta_goal, v_goal]) + obstacle_penalty + lane_penalty
+        # Objective
+        objective = obstacle_penalty + lane_penalty
         opti.minimize(objective)
 
         # Solver
@@ -161,14 +153,12 @@ class MPC(object):
             self.healthy = False
             return 0, 0
 
-        x_sol = sol.value(X[0,:])
-        y_sol = sol.value(X[1,:])
-        theta_sol = sol.value(X[2,:])
-        v_sol = sol.value(X[3,:])[0]
+        print("X", sol.value(X[0,:]))
+        print("Y", sol.value(X[1,:]))
+        print("T", sol.value(X[2,:]))
+        print("V", sol.value(X[3,:]))
         delta_sol = sol.value(U[1,:])[0]
         acc_sol = sol.value(U[0,:])[0]
-        # delta_sol = sol.value(X[4,:])[0]
-        # omega_sol = sol.value(U[1,:])[0]
 
         return delta_sol, acc_sol
 
@@ -212,25 +202,29 @@ class MPCTrajectoryPlanner(Component):
 
     def update(self, state : AllState):
         agents = state.agents
-        vehicle = state.vehicle
-        route = state.route
+        vehicle = state.vehicle.to_frame(ObjectFrameEnum.ABSOLUTE_CARTESIAN, start_pose_abs=state.start_vehicle_pose)
         x_start, y_start, theta_start, v_start = vehicle.pose.x, vehicle.pose.y, vehicle.pose.yaw, vehicle.v
-        x_goal, y_goal, theta_goal, v_goal = *route.points[-1], 0., 0.
 
-        agents = [a.to_frame(ObjectFrameEnum.START, start_pose_abs=state.start_vehicle_pose) for a in agents.values()]
+        agents = [a.to_frame(ObjectFrameEnum.ABSOLUTE_CARTESIAN, start_pose_abs=state.start_vehicle_pose) for a in agents.values()]
         agents = [[a.type, a.pose.x, a.pose.y, a.velocity[0], a.velocity[1], *a.dimensions] for a in agents]
 
         curr_lane = state.roadgraph.get_current_lane(state.vehicle)
         if curr_lane:
-            self.mpc.lane_centerline = state.roadgraph.lanes[curr_lane].center.segments
+            # Get the current segment
+            min_dist = float('inf')
+            seg_idx = 0
+            for idx, seg in enumerate(state.roadgraph.lanes[curr_lane].center.segments):
+                for i in range(len(seg)-1):
+                    dist, _ = transforms.point_segment_distance((x_start, y_start, 0), seg[i], seg[i+1])
+                    if dist < min_dist:
+                        min_dist = dist
+                        seg_idx = idx
 
-        wheel_angle, accel = self.mpc.compute(x_start, y_start, theta_start, v_start, \
-                                              x_goal, y_goal, theta_goal, v_goal, agents)
+            self.mpc.lane_centerline = state.roadgraph.lanes[curr_lane].center.segments[seg_idx]
+
+        wheel_angle, accel = self.mpc.compute(x_start, y_start, theta_start, v_start, agents)
         print(f"Wheel angle: {wheel_angle}, Acceleration: {accel}")
 
-        if np.sqrt((x_start - x_goal)**2 + (y_start - y_goal)**2) <= 0.1: # threshold for reaching the goal
-            wheel_angle = 0
-            accel = 0
         steering_angle = np.clip(front2steer(wheel_angle), self.mpc.steering_angle_range[0], self.mpc.steering_angle_range[1])
         self.vehicle_interface.send_command(self.vehicle_interface.simple_command(accel, steering_angle, vehicle))
 
