@@ -1,16 +1,15 @@
-from ...state import AllState,VehicleState,ObjectPose,ObjectFrameEnum,AgentState,AgentEnum,AgentActivityEnum
+from ...state import VehicleState,ObjectPose,ObjectFrameEnum,AgentState,AgentEnum,AgentActivityEnum
 from ..interface.gem import GEMInterface
 from ..component import Component
-from typing import Dict
-import threading
+
 from sklearn.cluster import DBSCAN
-import copy
+
 import cv2
 import numpy as np
 from ultralytics import YOLO
-from typing import Dict, Tuple, List
-from GEMstack.onboard.perception.kalman_tracker import KalmanFilter, KalmanTracker
-from GEMstack.onboard.perception.pixelwise_3D_lidar_coord_handler import PixelWise3DLidarCoordHandler
+from typing import Dict, Tuple
+
+
 try:
     from sensor_msgs.msg import CameraInfo
     from image_geometry import PinholeCameraModel
@@ -59,7 +58,7 @@ class MultiObjectDetector(Component):
     """Utilize YOLOv8 to detect multi-objects in each frame"""
     def __init__(self,vehicle_interface : GEMInterface, extrinsic=None):
         self.vehicle_interface = vehicle_interface
-        self.kalman_tracker = KalmanTracker
+
         self.detector = YOLO('GEMstack/knowledge/detection/yolov8n.pt')
         self.camera_info_sub = None
         self.camera_info = None
