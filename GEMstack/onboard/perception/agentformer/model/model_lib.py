@@ -1,5 +1,8 @@
-from .agentformer.model.agentformer import AgentFormer
-from .agentformer.model.dlow import DLow
+from model import AgentFormer
+from model.dlow import DLow
 
 
-model_dict = {"agentformer": AgentFormer, "dlow": DLow}
+model_dict = {
+    'agentformer': AgentFormer,
+    'dlow': DLow
+}
