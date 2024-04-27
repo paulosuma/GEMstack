@@ -12,7 +12,7 @@ recovery:
 drive: 
     perception:
         state_estimation : GNSSStateEstimator
-        agent_detection : pedestrian_detection.PedestrianDetector
+        agent_detection : agent_detection.MultiObjectDetector
         agent_tracking : pedestrian_tracking.PedestrianTracker
         perception_normalization : StandardPerceptionNormalizer
         agent_prediction : pedestrian_trajectory_prediction.PedestrianTrajPrediction
