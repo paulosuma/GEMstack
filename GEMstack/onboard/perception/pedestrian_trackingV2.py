@@ -148,11 +148,12 @@ class PedestrianTracker(Component):
         for ag_class, ag_dict in all_ag_dict.items():
             for pid in sorted(ag_dict):
                 if self.current_frame in self.tracking_results[ag_class]:
-                    self.tracking_results[ag_class][self.current_frame].append(ag_dict[pid])
+                    self.tracking_results[ag_class][self.current_frame][pid] = ag_dict[pid]
                 else:
-                    self.tracking_results[ag_class][self.current_frame] = [ag_dict[pid]]
+                    self.tracking_results[ag_class][self.current_frame] = {pid: ag_dict[pid]}
             if not self.write_all:
                 # Remove old tracking information
                 self.tracking_results[ag_class].pop(self.current_frame - self.write_limit, None)
         
         self.current_frame += 1
+Dict[AgentEnum, Dict[FrameNum, List[Dict[Id, AgentState]]]]
