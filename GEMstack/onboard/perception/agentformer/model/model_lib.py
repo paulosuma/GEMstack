@@ -1,4 +1,4 @@
-from model import AgentFormer
+from model.agentformer import AgentFormer
 from model.dlow import DLow
 
 

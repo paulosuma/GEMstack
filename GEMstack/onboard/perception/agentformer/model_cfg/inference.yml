@@ -6,7 +6,7 @@ seed                         : 1
 dataset                      : eth
 data_root_ethucy             : datasets/eth_ucy
 data_root_nuscenes_pred      : datasets/nuscenes_pred
-model_path                   : model_weights/eth_inference.p
+model_path                   : GEMstack/onboard/perception/agentformer/model_weights/eth_inference.p
 
 # ------------------- Feature Extractor -------------------------
 
@@ -22,7 +22,7 @@ forecast_dim                 : 2
 # ------------------- Model -------------------------
 
 model_id: dlow
-pred_cfg: model_cfg/inference_pre.yml
+pred_cfg: GEMstack/onboard/perception/agentformer/model_cfg/inference_pre.yml
 pred_epoch: 30
 qnet_mlp: [512, 256]
 share_eps: true

@@ -1,4 +1,3 @@
-from data.nuscenes_pred_split import get_nuscenes_pred_split
 import os, random, numpy as np, copy
 
 from preprocessor_improved import preprocess
@@ -6,7 +5,8 @@ from utils.utils import print_log
 
 
 class data_generator(object):
-    def __init__(self, parser, gt_data, log, split="train", phase="training"):
+    def __init__(self, parser, gt_data, log=None, split="train", phase="training"):
+        log = open("log_test.txt", "w")
         self.past_frames = parser.past_frames
         self.min_past_frames = parser.min_past_frames
         self.frame_skip = parser.get("frame_skip", 1)

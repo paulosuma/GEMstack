@@ -6,7 +6,7 @@ seed                         : 1
 dataset                      : eth
 data_root_ethucy             : datasets/eth_ucy
 data_root_nuscenes_pred      : datasets/nuscenes_pred
-model_path                   : model_weights/eth_inference_pre.p
+model_path                   : GEMstack/onboard/perception/agentformer/model_weights/inference_pre.p
 
 # ------------------- Feature Extractor -------------------------
 

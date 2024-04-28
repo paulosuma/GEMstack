@@ -80,6 +80,8 @@ class PedestrianTracker(Component):
         pass
 
     def update(self, detected_agents: List[AgentState]):
+        if detected_agents is None :
+            return []
 
         print("Updating with detected, ", detected_agents)
         """Update the component."""

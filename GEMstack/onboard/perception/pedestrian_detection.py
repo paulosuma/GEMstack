@@ -163,6 +163,7 @@ class PedestrianDetector(Component):
         self.camera_info = camera_info
 
     def initialize(self):
+        print("INITIALIZE PED DETECT")
         # tell the vehicle to use image_callback whenever 'front_camera' gets a reading, and it expects images of type cv2.Mat
         self.vehicle_interface.subscribe_sensor('front_camera',self.image_callback,cv2.Mat)
         # tell the vehicle to use lidar_callback whenever 'top_lidar' gets a reading, and it expects numpy arrays
@@ -180,14 +181,18 @@ class PedestrianDetector(Component):
         self.point_cloud = point_cloud
 
     def update(self, vehicle : VehicleState) -> Dict[str,AgentState]:
+        print("0PED DETECT UPDATE", self.zed_image is None, self.point_cloud is None, self.camera_info is  None)
         if self.zed_image is None:
             # no image data yet
+            print("zed")
             return {}
         if self.point_cloud is None:
             # no lidar data yet
+            print("pc")
             return {}
         if self.camera_info is None:
             # no camera info yet
+            print("camera")
             return {}
 
         # debugging
@@ -196,6 +201,8 @@ class PedestrianDetector(Component):
         # t1 = time.time()
         detected_agents = self.detect_agents()  # TODO: to ask SE to output detected_agents only
 
+
+        print("Pedestrian Detection detected agents: ", detected_agents)
         return detected_agents
 
         # TODO: ask SE to remove

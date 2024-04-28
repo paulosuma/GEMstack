@@ -28,7 +28,7 @@ from dataloader_improved import data_generator
 NUM_PREV_FRAMES = 7
 NUM_FUTURE_FRAMES = 12
 
-CONFIG_FILE = 'model_cfg/inference.yml'
+CONFIG_FILE = 'GEMstack/onboard/perception/agentformer/model_cfg/inference.yml'
 
 PEDESTRIAN_DIMS = (1, 1, 1.7)
 
@@ -37,9 +37,9 @@ class PedestrianTrajPrediction(Component):
     def __init__(self,vehicle_interface : GEMInterface):
         print("initializing trajpredict CONSTRUCTOR")
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.model = self.load_model(CONFIG_FILE)
-        self.frame_rate = 2.5
         self.config = Config(CONFIG_FILE)
+        self.model = self.load_model()
+        self.frame_rate = 2.5
 
     # Do NOT use until we get our model workinggnikrow
     def convert_data_to_model_input(self, past_agent_states : List[Dict[int, AgentState]]) -> np.ndarray:
@@ -70,7 +70,7 @@ class PedestrianTrajPrediction(Component):
         print(f'loading model from checkpoint: {cp_path}')
         model_cp = torch.load(cp_path, map_location='cpu')
         model.load_state_dict(model_cp['model_dict'], strict=False)
-        model = model_dict[self.config.model_name](self.config)
+        #model = model_dict[self.config.model_name](self.config)
         return model
 
     # Run the model on the data
@@ -144,7 +144,7 @@ class PedestrianTrajPrediction(Component):
         pass
     
     # Changing signature of model since we changed the output format of AgentFormer to return the actual tensor
-    def convert_data_from_model_output(self, sample_model_3D, valid_id, frame) -> List[Dict[List[AgentState]]]:
+    def convert_data_from_model_output(self, sample_model_3D, valid_id, frame) -> List[Dict[int,List[AgentState]]]:
         agent_list = []
         # sample_model_3D: 5 x ped_id x 12 x 2
         for traj in range(sample_model_3D.shape[0]):
@@ -181,11 +181,16 @@ class PedestrianTrajPrediction(Component):
     # def update(self, past_agent_states : List[str]) -> List[Dict[List[AgentState]]]:
     # Assuming that past_agent_states is actually a numpy array instead of just a list of strings
     # past_agent_states.shape: [num_frames_in_model * (peds_in_frame for frame in frames), 17]
-    def update(self, past_agent_states) -> List[Dict[List[AgentState]]]:
+    def update(self, past_agent_states) -> List[Dict[int, List[AgentState]]]:
         print("input to trajpredict, ", past_agent_states.shape)
         data = copy.deepcopy(past_agent_states)
         self.cur_time = time.time()
         # flip the x- and y-coordinates for each pedestrian in each frame
+
+        if data == []:
+            print("NO INPUT TO trajpredict")
+            return []
+
         data[:, -2], data[:, -4] = data[:, -4], data[:, -2]
 
         # run the traj prediction model on data
