@@ -84,11 +84,10 @@ class PedestrianTracker(Component):
         pass
 
     def update(self, detected_agents: List[AgentState]):
-
         print("Updating with detected, ", detected_agents)
         """Update the component."""
         self.track_agents(detected_agents=detected_agents)
-        return self.output_tracking_results()
+        return self.tracking_results
 
     def debug(self, item, value):
         """Debugs a streaming value within this component"""
