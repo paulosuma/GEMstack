@@ -36,9 +36,9 @@ class PedestrianTracker(Component):
     ):
         self.kalman_trackers = [KalmanTracker(config_file_path=kalman_config_file) for kalman_config_file in kalman_config_files]
         self.kalman_classes = kalman_classes
-        self.tracking_results = {}
+        self.tracking_results = {ag_class:{} for ag_class in kalman_classes}
         self.current_frame = 0
-        self.write_limit=8
+        self.write_limit= write_limit
         
         self.detection_file_name = detection_file_name
         self.write_all = write_all
@@ -145,58 +145,15 @@ class PedestrianTracker(Component):
 
     def update_track_history(
         self, all_ag_dict: Dict[AgentEnum, Dict[int, AgentState]]
-    ):  # Behavior Prediction
+    ):
         for ag_class, ag_dict in all_ag_dict.items():
             for pid in sorted(ag_dict):
-                curr_agent = ag_dict[pid]
-                curr_pose = curr_agent.pose
-                # 11.0 5.0 Pedestrian -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.59 -1.0 0.93 -1.0
-                agent_frame_data = f"{float(self.current_frame)} {float(pid)} Pedestrian -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 {curr_pose.x} -1.0 {curr_pose.y} -1.0\n"
-                if self.current_frame in self.tracking_results:
-                    self.tracking_results[self.current_frame].append(agent_frame_data)
+                if self.current_frame in self.tracking_results[ag_class]:
+                    self.tracking_results[ag_class][self.current_frame].append(ag_dict[pid])
                 else:
-                    self.tracking_results[self.current_frame] = [agent_frame_data]
-            # Do not keep more than 8 frames
+                    self.tracking_results[ag_class][self.current_frame] = [ag_dict[pid]]
             if not self.write_all:
-                # Remove 8th oldest frame
-                self.tracking_results.pop(self.current_frame - 8, None)
+                # Remove old tracking information
+                self.tracking_results[ag_class].pop(self.current_frame - self.write_limit, None)
         
         self.current_frame += 1
-
-    # TODO: Write Docstring
-    def output_tracking_results(self):  # Behavior Prediction
-        tracking_frames = []
-
-        recent_pids = {}
-        
-        # Dummy frames should be written for these pids
-        valid_pids = set()
-
-        with open(self.detection_file_name, "w") as f:
-            for frame in sorted(self.tracking_results):
-                for line in sorted(self.tracking_results[frame]):
-                    
-                    # Check whether a dummy frame should be written for this pid
-                    curr_pid = line.split(" ")[1]
-                    pid_seen_count = recent_pids.get(curr_pid, 0) + 1
-                    if pid_seen_count >= 8:
-                        valid_pids.add(curr_pid)
-                        
-                    recent_pids[curr_pid] = pid_seen_count
-                        
-                        
-                    if self.test:
-                        f.write(line)
-                    tracking_frames.append(line)
-            if not self.write_all:
-                # Adding dummy frames, because we are only writing the recent frames
-                for frame in range(self.current_frame, self.current_frame + 12):
-                    for rpid in valid_pids:
-                        dummy_frame = f"{float(frame)} {float(rpid)} Pedestrian -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 0.0 -1.0 0.0 -1.0\n"
-                        if self.test:
-                            f.write(dummy_frame)
-                        tracking_frames.append(dummy_frame)
-
-        # print("Tracking results, ", tracking_frames)
-        return np.array([tracking_frame.split(' ') for tracking_frame in tracking_frames])
-        # return [tracking_frame.split(' ') for tracking_frame in tracking_frames]
