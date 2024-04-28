@@ -156,4 +156,3 @@ class PedestrianTracker(Component):
                 self.tracking_results[ag_class].pop(self.current_frame - self.write_limit, None)
         
         self.current_frame += 1
-Dict[AgentEnum, Dict[FrameNum, List[Dict[Id, AgentState]]]]
