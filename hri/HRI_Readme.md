@@ -26,6 +26,7 @@ Ensure you have Python installed, then set up a Python environment:
 ```bash
 python -m venv env
 source env/bin/activate
+```
 
 Install the necessary Python packages:
 
