@@ -16,17 +16,15 @@ drive:
         roadgraph_update:
             type: StaticRoadgraphUpdater
             args: [!relative_path "../GEMstack/knowledge/roadmaps/lane_example.json"]
+        lane_following_detection : normal_road_detection.LaneGoalDetector
+        lane_boundary_detection : normal_road_detection.LaneBoundaryDetector
     planning:
         route_planning:
             type: DummyRoutePlanner
             args: {start: [0.,0.,0.,0.,0.], end: [30.,0.,0.,0.,0.]}
-        # mpc_controller:
-        #     type: mpc_acc.ACCTrajectoryPlanner
-        #     args: {desired_speed: 2.5}  #approximately 5mph
-        #     print: True
-        mpc_controller:
+        motion_planning:
             type: mpc_motion_planning.MPCTrajectoryPlanner
-            args: {}
+            args: {"acc_lka": True}
             print: True
 log:
     # Specify the top-level folder to save the log files.  Default is 'logs'

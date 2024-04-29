@@ -5,9 +5,6 @@ vehicle:  !include ../vehicle/gem_e2.yaml
 carla_vehicle: !include ../vehicle/carla.yaml
 
 #arguments for algorithm components here
-model_predictive_controller:
-    dt: 0.1
-    lookahead: 20
 control:
     recovery:
         brake_amount : 0.5
@@ -31,6 +28,10 @@ perception:
     sign_detection:
         model: !relative_path '../detection/sign_model.pt'
     
+A_star_planner:  
+    !include A_star_planner.yaml
+MPC_planner:
+    !include MPC_planner.yaml
 
 #configure the simulator, if using
 simulator:
