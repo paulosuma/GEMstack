@@ -5,12 +5,18 @@ import whisper
 import sounddevice as sd
 import io
 import soundfile as sf
+import json
 
 rospy.init_node('LLM_HVI', anonymous=True)
 pub = rospy.Publisher('/LLM_HVI', String, queue_size=10)
 
+# Load API key from a configuration file
+with open('config.json', 'r') as config_file:
+    config = json.load(config_file)
+    api_key = config['openai_api_key']
+
 client = OpenAI(
-    api_key="",
+    api_key=api_key,
 )
 
 def record_and_save_audio(file_path, duration=10, sample_rate=16000):
