@@ -156,3 +156,24 @@ class PedestrianTracker(Component):
                 self.tracking_results[ag_class].pop(self.current_frame - self.write_limit, None)
         
         self.current_frame += 1
+    
+    def get_stationary_pedestrians(tracking_frames):
+        epsilon = 0.1 #hyperparam
+        num_past_frames = 3 #hyperparam
+        pedestrian_frames =  tracking_frames[AgentEnum.Pedestrian]
+        latest_frames = sorted(list(pedestrian_frames.keys()))[-num_past_frames:]
+        all_peds_set = set() # all pedestrians
+        non_stat_peds = set() # pedestrians that are not stationary
+        for frame in latest_frames:
+            frame_peds = set()
+            for pid,ag_state in pedestrian_frames[frame].items():
+                # if the velocity of the pedestrians are more than 0,
+                # then add the pedestrian to the set of non-stationary pedestrians
+                if ag_state.velocity[0]**2 + ag_state.velocity[1]**2 > epsilon**2:
+                    non_stat_peds.add(pid)
+                all_peds_set.add(pid)
+                frame_peds.add(pid)
+            all_peds_set = all_peds_set.intersect(frame_peds)
+
+        stationary_pedestrians = all_peds_set - non_stat_peds
+        return stationary_pedestrians
