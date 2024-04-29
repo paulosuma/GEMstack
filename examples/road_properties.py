@@ -1,12 +1,12 @@
 import sys
 import os
-import time
+import timeit
 
 sys.path.append(os.getcwd()) # to import GEMstack from top level directory
 
-from GEMstack.onboard.planning.road_properties import RoadProperties
+from GEMstack.onboard.planning.road_properties import RoadPropertiesHandler
 
-road = RoadProperties()
+road = RoadPropertiesHandler()
 
 coords = []
 coords.append((40.114675, -88.228936)) # S Wright St, next to ECE dept
@@ -18,24 +18,18 @@ coords.append((40.112706, -88.228251)) # W Springfield Ave, next to CIF
 coords.append((40.116376, -88.227432)) # W University Ave, next to Beckman Institute
 
 for coord in coords:
-	print(coord)
+	t1 = timeit.default_timer()
 
-	t1 = time.time()
-	name = road.get_road_name(coord)
-	t2 = time.time()
-	print('Name:', name)
-	print('  Time:', '{:.3f}'.format(t2-t1), 'seconds')
+	road.update(*coord)
 
-	t1 = time.time()
-	speed = road.get_speed_limit(coord)
-	t2 = time.time()
-	print('Speed:', speed)
-	print('  Time:', '{:.9f}'.format(t2-t1), 'seconds')
+	t2 = timeit.default_timer()
+	print('Update Time:', '{:.3f}'.format(t2-t1), 'seconds')
 
-	t1 = time.time()
-	lanes = road.get_number_of_lanes(coord)
-	t2 = time.time()
-	print('Lanes:', lanes)
-	print('  Time:', '{:.9f}'.format(t2-t1), 'seconds')
+	print('Name:', road.properties.name)
+	print('Speed:', road.properties.max_speed)
+	print('Lanes:', road.properties.lanes)
+	
+	t3 = timeit.default_timer()
+	print('Access Time:', '{:.6f}'.format(t3-t2), 'seconds')
 
 	print()
