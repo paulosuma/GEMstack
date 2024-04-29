@@ -63,21 +63,43 @@ class PedestrianTrajPrediction(Component):
 
         # takes in list of dictionaries corresponding to past 8 frames
         past_frames = []
+        recent_pids = {}
+
+        # Dummy frames should be written for these pids
+        valid_pids = set()
         for framenum in range(len(past_agent_states)):
             frame = past_agent_states[framenum]
             for ped_id, agent_state in frame.items():
                 # create length 17 aray of -1
-                row = np.full(17, -1)
+                row = np.full(17, -1.0)
                 # get x, y
                 x, y = agent_state.pose.x, agent_state.pose.y
                 row[0] = framenum
                 row[1] = ped_id
+                
+                pid_seen_count = recent_pids.get(ped_id, 0) + 1
+                if pid_seen_count >= 8:
+                    valid_pids.add(ped_id)
+                        
+                    recent_pids[ped_id] = pid_seen_count 
                 # we need to flip the x and y coordinates for the model
                 row[-4] = y
                 row[-2] = x
                 
-            past_frames.append(row)
-
+                past_frames.append(row)
+                
+        for frame in range(NUM_PREV_FRAMES + 2, NUM_PREV_FRAMES + 2 + NUM_FUTURE_FRAMES):
+            for rpid in valid_pids:
+                # create length 17 aray of -1
+                row = np.full(17, -1.0)
+                # get x, y
+                x, y = -1.0, -1.0
+                row[0] = frame
+                row[1] = rpid
+                # we need to flip the x and y coordinates for the model
+                row[-4] = y
+                row[-2] = x
+                past_frames.append(row)
         past_frames = np.array(past_frames).astype(str)
         print(past_frames.shape)
         return past_frames
