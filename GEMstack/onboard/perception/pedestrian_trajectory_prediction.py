@@ -44,9 +44,14 @@ class PedestrianTrajPrediction(Component):
     # Do NOT use until we get our model workinggnikrow
     # dict of pedestrian types
     # each is {agentenum.pedestrian/whatever: {framenum: {ped id:state}}}
+    # TODO ANANYA MAKE SURE THIS ALWAYS RETURNS A NP ARRAY
     def convert_data_to_model_input(self, past_agent_states : Dict[AgentEnum, Dict[int, Dict[int, AgentState]]]) -> np.ndarray:
         # get tracked frames for pedestrian agents
         pedestrian_agent_states = past_agent_states[AgentEnum.PEDESTRIAN]
+        if len(pedestrian_agent_states) == 0:
+            return []
+
+
         # get the 8 most recent frames(highest frame number) from the past_agent_states
         past_agent_states = []
 
@@ -81,14 +86,18 @@ class PedestrianTrajPrediction(Component):
                 if pid_seen_count >= 8:
                     valid_pids.add(ped_id)
                         
-                    recent_pids[ped_id] = pid_seen_count 
+                recent_pids[ped_id] = pid_seen_count 
                 # we need to flip the x and y coordinates for the model
                 row[-4] = y
                 row[-2] = x
                 
                 past_frames.append(row)
                 
-        for frame in range(NUM_PREV_FRAMES + 2, NUM_PREV_FRAMES + 2 + NUM_FUTURE_FRAMES):
+
+        if len(valid_pids) == 0:
+            return []
+
+        for frame in range(NUM_PREV_FRAMES + 1, NUM_PREV_FRAMES + 1 + NUM_FUTURE_FRAMES):
             for rpid in valid_pids:
                 # create length 17 aray of -1
                 row = np.full(17, -1.0)
@@ -100,8 +109,13 @@ class PedestrianTrajPrediction(Component):
                 row[-4] = y
                 row[-2] = x
                 past_frames.append(row)
+
+
         past_frames = np.array(past_frames).astype(str)
-        print(past_frames.shape)
+        past_frames[:,2] = "Pedestrian"
+
+        np.savetxt("test_input_data.txt", past_frames, delimiter=" ", fmt="%s")
+
         return past_frames
 
     #  Load a model from the file specified in config. 
@@ -119,10 +133,11 @@ class PedestrianTrajPrediction(Component):
 
     # Run the model on the data
     def run_model(self, data):
+        assert len(data) != None, "Model can't run on empty data"
         split = 'test'
-        generator = data_generator(self.config, data, split=split, phase='testing')
+        generator = data_generator(self.config, gt_data=data, split=split, phase='testing')
         sample_motion_3D, valid_id, frame = self.run_model_on_data(generator) # [samples, num_agents, future_frames, 2]
-        sample_motion_3D = sample_motion_3D[self.cf.best_samples]
+        sample_motion_3D = sample_motion_3D[self.config.best_samples]
         # write to file or return  
         # select the
         # flush the output to stdout
@@ -132,10 +147,10 @@ class PedestrianTrajPrediction(Component):
         print(f"ids are {valid_id}", flush=True)
         print(sample_motion_3D.shape)
 
-        # load in gt_results from real_results.pt
-        gt_results = torch.load('real_results.pt')
-        # check if the two tensors are equal
-        print("the results match the expected results", torch.equal(sample_motion_3D, gt_results))
+        # # load in gt_results from real_results.pt
+        # gt_results = torch.load('real_results.pt')
+        # # check if the two tensors are equal
+        # print("the results match the expected results", torch.equal(sample_motion_3D, gt_results))
         
         return sample_motion_3D, valid_id, frame
     
@@ -146,20 +161,22 @@ class PedestrianTrajPrediction(Component):
         sample_motion_3D = sample_motion_3D.transpose(0, 1).contiguous()
         return sample_motion_3D
     
-    def run_model_on_data(self, generator):
-        while not generator.is_epoch_end():
-            data = generator()
-            if data is None:
-                continue
-            seq_name, frame = data['seq'], data['frame']
+    def run_model_on_data(self, generator): 
+        data = generator()
+        if data is None:
+            print("DATA IS NONE AAA")
+            return [], [], -1 
 
-            frame = int(frame)
-            
-            with torch.no_grad():
-                sample_motion_3D = self.get_model_prediction(data)
-            sample_motion_3D = sample_motion_3D * self.config.traj_scale
+        seq_name, frame = data['seq'], data['frame']
+
+        frame = int(frame)
         
-            return sample_motion_3D, data['valid_id'], frame
+        with torch.no_grad():
+            sample_motion_3D = self.get_model_prediction(data)
+        sample_motion_3D = sample_motion_3D * self.config.traj_scale
+    
+        return sample_motion_3D, data['valid_id'], frame
+        print("end of run model on data, not returning anything")
         
 
     def rate(self):
@@ -214,7 +231,7 @@ class PedestrianTrajPrediction(Component):
                     dims = PEDESTRIAN_DIMS
                     # velocity = esimate velocity from past few frames
                     # velocity = self.estimate_velocity(past few frames)
-                    agent_state = AgentState(pose=pose, dimension=dims, outline=None, type=AgentEnum.PEDESTRIAN, activity=AgentActivityEnum.MOVING, velocity=(0, 0, 0), yaw_rate=0)
+                    agent_state = AgentState(pose=pose, dimensions=dims, outline=None, type=AgentEnum.PEDESTRIAN, activity=AgentActivityEnum.MOVING, velocity=(0, 0, 0), yaw_rate=0)
                     agent_dict[ped_id].append(agent_state)
             agent_list.append(agent_dict)
         return agent_dict
@@ -238,7 +255,7 @@ class PedestrianTrajPrediction(Component):
 
         model_input = self.convert_data_to_model_input(data)
 
-        if model_input.shape == (0, ):
+        if len(model_input) == 0 or model_input.shape == (0, ):
             print("no pedestrians found, no need to run model. ")
             return []
 

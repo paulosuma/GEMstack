@@ -164,6 +164,8 @@ class PedestrianTracker(Component):
         latest_frames = sorted(list(pedestrian_frames.keys()))[-num_past_frames:]
         all_peds_set = set() # all pedestrians
         non_stat_peds = set() # pedestrians that are not stationary
+
+        peds_to_frames = {} # {ped id: number of frames they show up}
         for frame in latest_frames:
             frame_peds = set()
             for pid,ag_state in pedestrian_frames[frame].items():
