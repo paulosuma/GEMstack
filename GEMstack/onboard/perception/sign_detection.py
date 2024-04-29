@@ -31,10 +31,9 @@ signal_dict = dict([
 class SignDetector(ObjectDetector):
     """Detects road signs and traffic signals."""
 
-    def __init__(self, vehicle : VehicleState, 
-                 camera_info, camera_image, lidar_point_cloud):
+    def __init__(self, vehicle : VehicleState, camera_image, lidar_point_cloud):
         detector = YOLO(settings.get('perception.sign_detection.model'))
-        super().__init__(vehicle, camera_info, camera_image, lidar_point_cloud, detector)
+        super().__init__(vehicle, camera_image, lidar_point_cloud, detector)
     
     def object_to_sign(self, detected_object, bbox_cls):
         return Sign(pose=detected_object.pose, dimensions=detected_object.dimensions, outline=None, 

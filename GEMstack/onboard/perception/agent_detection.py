@@ -14,10 +14,9 @@ import copy
 class AgentDetector(ObjectDetector):
     """Detects and tracks other agents."""
 
-    def __init__(self, vehicle : VehicleState, 
-                 camera_info, camera_image, lidar_point_cloud):
+    def __init__(self, vehicle : VehicleState, camera_image, lidar_point_cloud):
         detector = YOLO(settings.get('perception.agent_detection.model'))
-        super().__init__(vehicle, camera_info, camera_image, lidar_point_cloud, detector)
+        super().__init__(vehicle, camera_image, lidar_point_cloud, detector)
 
     def object_to_agent(self, detected_object, bbox_cls):
         """Creates a 3D agent state from a PhysicalObject."""
