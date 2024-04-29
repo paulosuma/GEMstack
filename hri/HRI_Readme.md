@@ -32,6 +32,7 @@ Install the necessary Python packages:
 
 ```bash
 pip install openai whisper sounddevice soundfile rospy
+```
 
 ## Setup
 
@@ -44,6 +45,22 @@ To run the script, navigate to the script's directory and execute:
 
 ```bash
 python llm_hvi.py
+```
+
+Make sure you are running this command in a terminal where the ROS environment is sourced, and the ROS master is active.
+
+## Notes
+
+The script continuously records and processes audio, transcribes it, and interacts based on the transcription.
+Responses are published to the ROS topic /LLM_HVI.
+To stop the script, use a KeyboardInterrupt (Ctrl+C in most terminals).
+Troubleshooting
+
+Microphone Access: Ensure your system has access to the microphone and that it's not being used by another application.
+ROS Issues: Check the ROS network configuration if messages are not being published or received.
+Contributing
+
+Feel free to fork the project and submit pull requests or create issues for bugs and feature requests.
 
 
 
