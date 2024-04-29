@@ -26,3 +26,23 @@ Ensure you have Python installed, then set up a Python environment:
 ```bash
 python -m venv env
 source env/bin/activate
+
+Install the necessary Python packages:
+
+```bash
+pip install openai whisper sounddevice soundfile rospy
+
+## Setup
+
+OpenAI API Key: Insert your OpenAI API key in the script where api_key="" is located.
+ROS Environment: Ensure that your ROS environment is correctly set up and that the ROS master is running.
+Audio Device: Verify that your audio input device is properly configured for recording.
+Usage
+
+To run the script, navigate to the script's directory and execute:
+
+```bash
+python llm_hvi.py
+
+
+
