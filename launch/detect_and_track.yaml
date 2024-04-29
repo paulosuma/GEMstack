@@ -13,7 +13,7 @@ drive:
     perception:
         state_estimation : GNSSStateEstimator
         agent_detection : agent_detection.MultiObjectDetector
-        agent_tracking : pedestrian_tracking.PedestrianTracker
+        agent_tracking : pedestrian_trackingV2.PedestrianTracker
         perception_normalization : StandardPerceptionNormalizer
         agent_prediction : pedestrian_trajectory_prediction.PedestrianTrajPrediction
 

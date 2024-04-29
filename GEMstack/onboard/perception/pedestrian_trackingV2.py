@@ -165,7 +165,7 @@ class PedestrianTracker(Component):
         all_peds_set = set() # all pedestrians
         non_stat_peds = set() # pedestrians that are not stationary
 
-        peds_to_frames = {} # {ped id: number of frames they show up}
+        prev_frame_peds = set() # pedestrians that were seen in the prev frame. 
         for frame in latest_frames:
             frame_peds = set()
             for pid,ag_state in pedestrian_frames[frame].items():
@@ -173,9 +173,17 @@ class PedestrianTracker(Component):
                 # then add the pedestrian to the set of non-stationary pedestrians
                 if ag_state.velocity[0]**2 + ag_state.velocity[1]**2 > epsilon**2:
                     non_stat_peds.add(pid)
+                else: # ped velocity is 0   
+                    # if this frame is the first time a pedestrian shows up, it's not stationary
+                    if pid not in prev_frame_peds:
+                        non_stat_peds.add(pid)
+
                 all_peds_set.add(pid)
                 frame_peds.add(pid)
+
+
             all_peds_set = all_peds_set.intersect(frame_peds)
+            prev_frame_peds = frame_peds
 
         stationary_pedestrians = all_peds_set - non_stat_peds
         return stationary_pedestrians
