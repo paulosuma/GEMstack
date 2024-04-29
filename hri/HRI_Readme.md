@@ -16,6 +16,7 @@ This script enables a human-voice interaction system using Whisper for voice tra
 - OpenAI API key
 - Whisper
 - SoundDevice
+- SoundFile
 - ROSPy
 
 ## Installation
