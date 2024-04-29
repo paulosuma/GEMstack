@@ -79,6 +79,7 @@ class PedestrianTrajPrediction(Component):
             past_frames.append(row)
 
         past_frames = np.array(past_frames).astype(str)
+        print(past_frames.shape)
         return past_frames
 
     #  Load a model from the file specified in config. 
@@ -209,11 +210,15 @@ class PedestrianTrajPrediction(Component):
         self.cur_time = time.time()
         # flip the x- and y-coordinates for each pedestrian in each frame
 
-        if data == []:
+        if data is None or data == []: 
             print("NO INPUT TO trajpredict")
             return []
 
         model_input = self.convert_data_to_model_input(data)
+
+        if model_input.shape == (0, ):
+            print("no pedestrians found, no need to run model. ")
+            return []
 
         # run the traj prediction model on data
         sample_model_3D, valid_ids, frame = self.run_model(model_input)
