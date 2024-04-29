@@ -264,6 +264,9 @@ class MultiObjectDetector(Component):
 
         if test: # Behavior Prediction
             return detected_agents, detection_result
+
+        print(len(detected_agents))
+        print(detected_agents)
         return detected_agents
 
     def save_data(self, loc=None):

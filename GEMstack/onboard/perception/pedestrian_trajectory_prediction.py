@@ -42,33 +42,43 @@ class PedestrianTrajPrediction(Component):
         self.frame_rate = 2.5
 
     # Do NOT use until we get our model workinggnikrow
+    # dict of pedestrian types
+    # each is {agentenum.pedestrian/whatever: {framenum: {ped id:state}}}
     def convert_data_to_model_input(self, past_agent_states : Dict[AgentEnum, Dict[int, Dict[int, AgentState]]]) -> np.ndarray:
         # get tracked frames for pedestrian agents
         pedestrian_agent_states = past_agent_states[AgentEnum.PEDESTRIAN]
         # get the 8 most recent frames(highest frame number) from the past_agent_states
         past_agent_states = []
+
+
+        print(len(past_agent_states), len(pedestrian_agent_states))
+
         # sort pedestrian agent states by frame number
         for frame in sorted(pedestrian_agent_states.keys(), reverse=True)[:NUM_PREV_FRAMES+1]:
             past_agent_states.append(pedestrian_agent_states[frame])
         # reverse past_agent_states so that the most recent frame is first
         past_agent_states = past_agent_states[::-1]
+        # past_agent_states = [{ped_id: state}] * # of frames 
+
 
         # takes in list of dictionaries corresponding to past 8 frames
         past_frames = []
-        for frame in past_agent_states:
+        for framenum in range(len(past_agent_states)):
+            frame = past_agent_states[framenum]
             for ped_id, agent_state in frame.items():
                 # create length 17 aray of -1
                 row = np.full(17, -1)
                 # get x, y
                 x, y = agent_state.pose.x, agent_state.pose.y
-                row[0] = frame
+                row[0] = framenum
                 row[1] = ped_id
                 # we need to flip the x and y coordinates for the model
                 row[-4] = y
                 row[-2] = x
                 
             past_frames.append(row)
-            past_frames = np.array(past_frames).astype(str)
+
+        past_frames = np.array(past_frames).astype(str)
         return past_frames
 
     #  Load a model from the file specified in config. 
@@ -193,7 +203,8 @@ class PedestrianTrajPrediction(Component):
     # Assuming that past_agent_states is actually a numpy array instead of just a list of strings
     # past_agent_states.shape: [num_frames_in_model * (peds_in_frame for frame in frames), 17]
     def update(self, past_agent_states) -> Dict[AgentEnum, Dict[int, Dict[int, AgentState]]]:
-        print("input to trajpredict, ", past_agent_states.shape)
+        print("input to trajpredict, ", len(past_agent_states.items()))
+
         data = copy.deepcopy(past_agent_states)
         self.cur_time = time.time()
         # flip the x- and y-coordinates for each pedestrian in each frame
@@ -212,6 +223,7 @@ class PedestrianTrajPrediction(Component):
         # convert data to AgentState objects make sure to convert the frames to time(which will add to the AgentPose object)
         agent_list = self.convert_data_from_model_output(sample_model_3D, valid_ids, frame)
         
+        print("agent list", len(agent_list))
         # return data
         return agent_list
         
