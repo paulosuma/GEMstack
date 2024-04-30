@@ -2,6 +2,10 @@
 
 This script enables a human-voice interaction system using Whisper for voice transcription and OpenAI's GPT models for generating conversational responses. It integrates with ROS (Robot Operating System) for messaging and uses SoundDevice for audio recording.
 
+Files in src show an example of this interface of modifying the parameters of the vehicle following waypoints. LLM will take in prompts, an example of the output, current condition of the vehicle, human's command in natural language and output modified parameters based on human's command in the form of JSON.
+
+The output of the LLM will be published in a rostopic to control the vehicle.
+
 ## Features
 
 - **Voice Recording**: Records voice using the microphone.
