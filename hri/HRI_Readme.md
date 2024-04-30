@@ -4,7 +4,7 @@ This script enables a human-voice interaction system using Whisper for voice tra
 
 Files in src show an example of this interface of modifying the parameters of the vehicle following waypoints. LLM will take in prompts, an example of the output, current condition of the vehicle, human's command in natural language and output modified parameters based on human's command in the form of JSON.
 
-The output of the LLM will be published in a rostopic to control the vehicle.
+The output of the LLM will be published to a rostopic to control the vehicle.
 
 ## Features
 
