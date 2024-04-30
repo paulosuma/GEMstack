@@ -172,10 +172,13 @@ class EKSStateEstimator(Component):
             #TODO, test if this is for physically uninstalled gnss condition
             #Or indoor unfixed satellite?
             raise RuntimeError("GNSS sensor not available")
-        vehicle_interface.subscribe_sensor('gnss', self.gnss_callback, GNSSReading)
+        # vehicle_interface.subscribe_sensor('gnss', self.gnss_callback, GNSSReading)
         
         #add gnss_callback
         vehicle_interface.subscribe_sensor('gnss',self.gnss_callback,GNSSReading)
+
+        #TODO, add IMU_callback
+
         self.gnss_pose = None
         #set initial gnss location and yaw
         self.location = settings.get('vehicle.calibration.gnss_location')[:2]
@@ -184,6 +187,7 @@ class EKSStateEstimator(Component):
         self.status = None
 
     # Get GNSS information
+    #TODO, add IMU data as well
     def gnss_callback(self, reading : GNSSReading):
         self.gnss_pose = reading.pose
         self.status = reading.status
@@ -221,9 +225,13 @@ class EKSStateEstimator(Component):
         #readings belong to GEMVehicleReading class
         #combine speed, steering, left/right signal etc with vehicle_pose_global
 
-        #Radian to meters here
+        #Radian to meters update here
         self.initialize_converter(-1.540009687915658, 0.6997620706897224)
         self.to_cartesian(vehicle_pose_global.x, vehicle_pose_global.y, vehicle_pose_global.yaw)
+        
+        #call ekf function here
+        ekf()
+
 
         readings = self.vehicle_interface.get_reading()
 
@@ -235,6 +243,11 @@ class EKSStateEstimator(Component):
         raw.v = filt_vel
         return raw
     
+    #TODO, add all logic into update function so it will be called automatically
+    #Input: GNSS in meters, IMU
+    #Output: Fused location in meters
+    def ekf(self):
+
     def initialize_converter(self, init_lon, init_lat):
         """ Store initial longitude and latitude converted to degrees """
         self. init_lon = math.degrees(init_lon)
@@ -258,10 +271,11 @@ class EKSStateEstimator(Component):
 
         self.dx = dx
         self.dy = dy
-        self.yaw = yaw
+        self.dyaw = yaw
 
         # Return the differences as new (x, y) coordinates and the unchanged yaw
-        return dx, dy, yaw
+        #pass
+        #return dx, dy, yaw
     
     # Example usage
     # initial_lon, initial_lat = initialize_converter(-1.540009687915658, 0.6997620706897224)
